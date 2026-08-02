@@ -1,0 +1,67 @@
+field_name,category,variable_type,math_notation,data_type,unit,description
+solar_irradiance,Energy_Production_Inputs,parameter,,float,kWh/m2,Available sunlight over a period of time
+pv_panel_efficiency,Energy_Production_Inputs,parameter,,float,%,Efficiency of the solar panels
+max_panel_area,Energy_Production_Inputs,parameter,,float,m2,"Available space for solar panels (see note: source doc lists this as 'maz', likely a typo)"
+grid_electricity_price,Energy_Production_Inputs,parameter,c_g,float,AUD/kWh,Price of buying electricity from the grid
+feed_in_tariff,Energy_Production_Inputs,parameter,r,float,AUD/kWh,Price of selling electricity to the grid
+grid_emissions_factor,Energy_Production_Inputs,parameter,eps_g,float,kgCO2e/kWh,Emissions per kWh from grid electricity
+max_grid_import_capacity,Energy_Production_Inputs,parameter,,float,kW,Maximum amount of electricity that can be bought
+max_grid_export_capacity,Energy_Production_Inputs,parameter,,float,kW,Maximum amount of electricity that can be sold
+route_distance,Fleet_Physics_Inputs,parameter,,float,km,Distance travelled per trip
+route_frequency,Fleet_Physics_Inputs,parameter,,float,trips/day,Number of trips per day
+energy_consumption_rate,Fleet_Physics_Inputs,parameter,,float,kWh/km,Energy used per km travelled
+fleet_size,Fleet_Physics_Inputs,parameter,,int,count,Number of trucks in the system
+truck_mass,Fleet_Physics_Inputs,parameter,,float,kg,"Truck mass, affects energy consumption"
+ev_retrofit_cost,Fleet_Physics_Inputs,parameter,C_EV,float,AUD,Cost to convert a diesel truck to EV
+diesel_fuel_consumption_rate,Fleet_Physics_Inputs,parameter,,float,L/km,Fuel use for diesel baseline scenario
+diesel_emissions_factor,Fleet_Physics_Inputs,parameter,eps_D,float,kgCO2e/L,Emissions per litre of diesel
+battery_capacity,Battery_Inputs,parameter,,float,kWh,Maximum energy storage size
+charge_efficiency,Battery_Inputs,parameter,,float,%,Charging energy losses
+discharge_efficiency,Battery_Inputs,parameter,,float,%,Discharging energy losses
+max_charge_rate,Battery_Inputs,parameter,,float,kW,Fastest charging allowed
+max_discharge_rate,Battery_Inputs,parameter,,float,kW,Fastest discharging allowed
+soc_min,Battery_Inputs,parameter,SOCmin,float,%,Minimum allowed battery level
+soc_max,Battery_Inputs,parameter,SOCmax,float,%,Maximum allowed battery level
+degradation_rate,Battery_Inputs,parameter,,float,%/year,Battery wear over time
+replacement_threshold,Battery_Inputs,parameter,,float,SOC% or age,When battery needs replacement
+number_of_chargers,Charger_Inputs,parameter,N_CS,int,count,How many chargers exist
+charger_power_rating,Charger_Inputs,parameter,,float,kW,Power per charger
+charging_efficiency,Charger_Inputs,parameter,,float,%,Energy loss during charging
+charging_time_per_vehicle,Charger_Inputs,parameter,,float,hours,Time needed to charge a truck
+solar_installation_emissions,Lifecycle_Inputs,parameter,eps_PV,float,kgCO2e,Emissions from installing solar
+battery_manufacturing_emissions,Lifecycle_Inputs,parameter,eps_SB / eps_BESS,float,kgCO2e/unit,Emissions to produce batteries
+charger_installation_emissions,Lifecycle_Inputs,parameter,eps_CS,float,kgCO2e,Emissions from installing chargers
+battery_disposal_emissions,Lifecycle_Inputs,parameter,,float,kgCO2e/unit,Emissions from recycling/disposal
+vehicle_residual_value,Lifecycle_Inputs,parameter,,float,AUD,Value of assets at end of life
+ev_maintenance_cost,Lifecycle_Inputs,parameter,C_EV,float,AUD/year or AUD/km,Maintenance cost for EV trucks
+diesel_maintenance_cost,Lifecycle_Inputs,parameter,C_D,float,AUD/year or AUD/km,Maintenance cost for diesel trucks
+discount_rate,Economic_Inputs,parameter,,float,%,Used to discount future costs
+inflation_rate,Economic_Inputs,parameter,,float,%,Accounts for price changes over time
+study_period_T,Economic_Inputs,parameter,T,int,years,Total study duration
+time_step_dt,Economic_Inputs,parameter,dt,float,hours,Simulation time step
+num_ev_trucks,Fleet_Decision_Variables,decision_variable,NEV / N_EV,int,count,Number of diesel trucks converted to electric
+num_diesel_trucks,Fleet_Decision_Variables,decision_variable,NDiesel / N_D,int,count,Number of diesel trucks remaining
+conversion_schedule_t,Fleet_Decision_Variables,decision_variable,ConversionSchedule[t],schedule,,Timing of electric truck conversions
+num_pv_panels,Infrastructure_Decision_Variables,decision_variable,NPV / N_PV,int,count,Number of solar PV panels installed
+num_chargers,Infrastructure_Decision_Variables,decision_variable,NCharger / N_CS,int,count,Number of charging stations installed
+num_swappable_batteries,Infrastructure_Decision_Variables,decision_variable,NSB / N_SB,int,count,Number of swappable batteries deployed
+bess_capacity_installed,Infrastructure_Decision_Variables,decision_variable,NBESS / N_BESS,float,kWh,Stationary battery storage capacity installed
+grid_import_t,Grid_Energy_Flow_Variables,decision_variable,ug[t] / u_g[t],float,kWh,Energy imported from the grid at time t
+grid_export_t,Grid_Energy_Flow_Variables,decision_variable,vg[t] / v_g[t],float,kWh,Energy exported to the grid at time t
+solar_generated_t,Renewable_Energy_Variables,decision_variable,EPV[t] / E_PV[t],float,kWh,Solar energy generated at time t
+solar_used_onsite_t,Renewable_Energy_Variables,decision_variable,EPV_used[t],float,kWh,Solar energy used onsite at time t
+solar_exported_t,Renewable_Energy_Variables,decision_variable,EPV_exported[t],float,kWh,"Solar energy exported to the grid at time t -- relationship to grid_export_t (vg[t]) not yet defined, see note"
+solar_curtailed_t,Renewable_Energy_Variables,decision_variable,EPV_curtailed[t],float,kWh,Unused solar energy at time t
+sb_stored_energy_bt,Swappable_Battery_Variables,decision_variable,"ESB[b,t] / E_SB[b,t]",float,kWh,Stored energy in swappable battery b at time t
+sb_charging_flow_bt,Swappable_Battery_Variables,decision_variable,"fSB[b,t] / f_SB[b,t]",float,kW,Charging flow into swappable battery b at time t
+sb_discharging_flow_bt,Swappable_Battery_Variables,decision_variable,"pSB[b,t] / p_SB[b,t]",float,kW,Discharging flow from swappable battery b at time t
+bess_stored_energy_t,Stationary_Battery_Variables,decision_variable,EBESS[t] / E_BESS[t],float,kWh,Stored energy in stationary battery system at time t
+bess_charging_flow_t,Stationary_Battery_Variables,decision_variable,fBESS[t] / f_BESS[t],float,kW,Charging flow into stationary battery system at time t
+bess_discharging_flow_t,Stationary_Battery_Variables,decision_variable,pBESS[t] / p_BESS[t],float,kW,Discharging flow from stationary battery system at time t
+truck_charging_status,Charging_Scheduling_Variables,decision_variable,"TruckCharging[truck,t]",binary,0/1,Whether a truck is charging at time t
+charger_assignment,Charging_Scheduling_Variables,decision_variable,"ChargerAssignment[truck,charger,t]",assignment,,Charger allocated to truck at time t
+battery_assignment,Charging_Scheduling_Variables,decision_variable,"BatteryAssignment[truck,battery,t]",assignment,,Battery allocated to truck at time t
+grid_mode_t,Binary_Mode_Variables,decision_variable,xg[t] / x_g[t],binary,0/1,"1 = grid import allowed, 0 = grid export allowed"
+battery_mode_bt,Binary_Mode_Variables,decision_variable,"xb[b,t] / x_b[b,t]",binary,0/1,"1 = battery charging allowed, 0 = discharging allowed"
+total_cost,Objective_Functions,derived,TotalCost,float,AUD,"Sum of capital, operating, maintenance, replacement and other costs, minus residual value -- minimised"
+total_emissions,Objective_Functions,derived,TotalEmissions,float,kgCO2e,"Sum of capital, operating, maintenance, replacement and disposal emissions -- minimised"

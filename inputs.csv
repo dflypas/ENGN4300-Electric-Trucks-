@@ -1,0 +1,2 @@
+assess_country,get_year,lat,lon,fit,constrained,residential_sector,start_year,end_year
+Australia,2026,-35.2809,149.1300,0.08,True,False,2007,2016

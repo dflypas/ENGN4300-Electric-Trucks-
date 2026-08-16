@@ -1,0 +1,24 @@
+field_name,value,category,variable_type,variable_name,data_type,unit,description
+year,2026,,,,,,
+latitude,-36.674,Location_Inputs,,,,,
+longitude,149.842,Location_Inputs,,,,,
+pv_panel_efficiency,0.9,Energy_Production_Inputs,parameter,,float,%,Efficiency of the solar panels
+max_panel_area,,Energy_Production_Inputs,parameter,,float,m2,Available space for solar panels
+peak_grid_electricity_price,0.05,Energy_Production_Inputs,parameter,,float,AUD/kWh,Price of buying electricity from the grid during peak times
+offpeak_grid_electricity_price,0.10,Energy_Production_Inputs,parameter,c_g,float,AUD/kWh,Price of buying electricity from the grid during off-peak times
+feed_in_tariff,,Energy_Production_Inputs,parameter,r,float,AUD/kWh,Price of selling electricity to the grid
+max_grid_import_capacity,,Energy_Production_Inputs,parameter,,float,kW,Maximum amount of electricity that can be bought
+max_grid_export_capacity,,Energy_Production_Inputs,parameter,,float,kW,Maximum amount of electricity that can be sold
+battery_capacity,900,Battery_Inputs,parameter,,float,kWh,Maximum energy storage size
+sb_charge_efficiency,0.95,Battery_Inputs,parameter,,float,%,Charging energy losses
+sb_discharge_efficiency,0.95,Battery_Inputs,parameter,,float,%,Discharging energy losses
+soc_min,0.2,Battery_Inputs,parameter,SOCmin,float,%,Minimum allowed battery level
+soc_max,1,Battery_Inputs,parameter,SOCmax,float,%,Maximum allowed battery level
+sb_charge_rate,250,Battery_Inputs,,,,kW/h,Energy delivered per hour of charging
+study_period_T,1,Economic_Inputs,parameter,T,int,years,Total study duration
+time_step_dt,1,Economic_Inputs,parameter,dt,float,hours,Simulation time step
+battery_cost,1,Economic_Inputs,,,,$,
+pv_panel_cost,1,Economic_Inputs,,,,$,
+charger_cost,1,Economic_Inputs,,,,$,
+charger_efficiency,0.95,Charger_Inputs,parameter,,float,%,Energy loss during charging
+charger_rate,250,Charger_Inputs,parameter,,float,kW/h,Energy delivered per hour of charging

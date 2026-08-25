@@ -99,6 +99,24 @@ class EnergyDataProcessor:
 
         print("pv cf '{}'".format(round(pv_MW.mean(),3)))
         return pv_MW
+    
+    def create_pv_profile_csv(
+        self,
+        output_csv="pv_profile_output.csv"):
+    
+        # Get weather data
+        weather_data, elevation = self.get_weather_data()
+    
+        # Calculate PV generation profile
+        pv_profile = self.get_renewable_profiles(weather_data)
+    
+        # Create dataframe
+        pv_output = pd.DataFrame({"Time": weather_data.index,"PV_Profile": pv_profile})
+    
+        # Save output
+        pv_output.to_csv(output_csv,index=False)
+    
+        return pv_output
 
 
 
@@ -229,6 +247,9 @@ def pv_profile_generator_tmy(weather_data, latitude: float, longitude: float,
           f'{round(total_profile_tmy.mean(), 4)}')
 
     return total_profile_tmy
+
+
+
 
 
 

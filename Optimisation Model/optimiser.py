@@ -99,25 +99,111 @@ from route_data_processor import process_route_data
 # Inputs and Input Variables
 # ============================================================
 
+INPUT_CSV = "input_data.csv"
 ROUTE_CSV = "route_schedule.csv"
-
-BATTERY_COST = 1.0   # cost per battery purchased (set to real $ figure)
-CHARGER_COST = 1.0   # cost per charger purchased (set to real $ figure)
-
-sb_cap = 920
-charger_power_kw = 250
-dt = float(1.0)
-charge_efficiency = 0.95
-discharge_efficiency = 0.95
-
-soc_BESS_initial = 0.8
-
-E_SB_min = 0.2 * sb_cap
-E_SB_max = sb_cap
+PV_CSV = "pv_profile_output.csv"
 
 
-E_SB_initial = 0.8 * sb_cap
-max_sb_charge_per_step = min(sb_cap, charger_power_kw) * dt
+# ============================================================
+# Read Model Input Data
+# ============================================================
+
+inputs_df = pd.read_csv(INPUT_CSV)
+
+# Convert:
+#
+# field_name | value
+# ------------------
+# sb_capacity | 920
+#
+# into:
+#
+# inputs["sb_capacity"] = 920
+
+inputs = (
+    inputs_df
+    .set_index("field_name")["value"]
+    .to_dict()
+)
+
+
+# ============================================================
+# Study Inputs
+# ============================================================
+
+duration_days = int(float(inputs["duration"]))
+
+dt = float(inputs["time_step_dt"])
+
+
+# ============================================================
+# Swappable Battery Inputs
+# ============================================================
+
+sb_cap = float(inputs["sb_max_capacity"])
+
+sb_min_soc = float(inputs["sb_min_soc"])
+
+sb_max_soc = float(inputs["sb_max_soc"])
+
+sb_initial_soc = float(inputs["sb_initial_soc"])
+
+charge_efficiency = float(
+    inputs["sb_charge_efficiency"]
+)
+
+discharge_efficiency = float(
+    inputs["sb_discharge_efficiency"]
+)
+
+BATTERY_COST = float(
+    inputs["battery_cost"]
+)
+
+# ============================================================
+# Charger Inputs
+# ============================================================
+
+charger_power_kw = float(
+    inputs["charger_power"]
+)
+
+CHARGER_COST = float(
+    inputs["charger_cost"]
+)
+
+
+# ============================================================
+# Stationary Battery Inputs
+# ============================================================
+
+soc_BESS_initial = float(
+    inputs["BESS_initial_soc"]
+)
+
+BESS_min_soc = float(
+    inputs["BESS_min_soc"]
+)
+
+BESS_max_soc = float(
+    inputs["BESS_max_soc"]
+)
+
+
+# ============================================================
+# Derived Parameters
+# ============================================================
+
+E_SB_min = sb_min_soc * sb_cap
+
+E_SB_max = sb_max_soc * sb_cap
+
+E_SB_initial = sb_initial_soc * sb_cap
+
+
+# Maximum energy that one charger can supply during one timestep
+max_sb_charge_per_step = charger_power_kw * dt
+
 
 def optimiser():
     # ============================================================

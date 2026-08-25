@@ -1,305 +1,428 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
+
 """
-Created on Thu Aug 13 13:57:48 2026
+DairyDrive Electric
+Route Data Processor
 
-@author: mollyrobertson
+Reads the raw milk collection route schedule and calculates:
+    - rounded route departure and return times
+    - route duration
+    - route electricity requirement
+    - route activity
+    - route departure and ending information
 
-Route and Time Processor for DairyDrive Electric
-
-This module:
-1. Imports the base daily route schedule.
-2. Repeats the schedule for 10 consecutive days.
-3. Calculates route duration from the true pickup and drop-off times.
-4. Calculates route energy assuming constant truck demand of 150 kW.
-5. Creates the hourly optimisation timestep set.
-6. Creates route departure, return, energy and activity dictionaries.
-7. Returns all outputs in the same structure expected by the optimiser.
+The processed route data is returned to the optimisation model.
 """
 
 import pandas as pd
-
-# ============================================================
-# Input Values
-# ============================================================
-
-TRUCK_ENERGY_USE_KW = 150.0
-NUMBER_OF_DAYS = 4
-REFERENCE_DATE = pd.Timestamp("2010-01-01")
+import math
 
 
 # ============================================================
-# Main Processing Function
+# Input Files
 # ============================================================
 
-def process_route_data(ROUTE_CSV):
-
-    daily_routes_df = pd.read_csv(ROUTE_CSV)
-    daily_routes_df.columns = daily_routes_df.columns.str.strip()
-
-    daily_routes_df["Pick Up Time"] = pd.to_datetime(daily_routes_df["Pick Up Time"])
-    daily_routes_df["Drop Off Time"] = pd.to_datetime(daily_routes_df["Drop Off Time"])
-
-    # ============================================================
-    # Repeat Route Schedule Daily
-    # ============================================================
-
-    routes = []
-    route_counter = 1
-
-    for day in range(NUMBER_OF_DAYS):
-
-        current_date = (REFERENCE_DATE + pd.Timedelta(days=day))
+INPUT_CSV = "input_data.csv"
 
 
-        for _, row in daily_routes_df.iterrows():
+# ============================================================
+# Helper Function
+# ============================================================
 
-            # ====================================================
-            # Original exact route times
-            # ====================================================
+def time_to_hours(time_value):
+    time_value = str(time_value).strip()
+    hours, minutes = time_value.split(":")
 
-            exact_departure = (
-                current_date
-                + pd.Timedelta(
-                    hours=row["Pick Up Time"].hour,
-                    minutes=row["Pick Up Time"].minute
-                )
-            )
-
-            exact_return = (
-                current_date
-                + pd.Timedelta(
-                    hours=row["Drop Off Time"].hour,
-                    minutes=row["Drop Off Time"].minute
-                )
-            )
+    return int(hours) + int(minutes) / 60
 
 
-            # If route crosses midnight
-            if exact_return <= exact_departure:
+# ============================================================
+# Main Route Processing Function
+# ============================================================
 
-                exact_return += pd.Timedelta(days=1)
+def process_route_data(route_csv):
 
+    # ========================================================
+    # 1. Read Model Input Parameters
+    # ========================================================
 
-            # ====================================================
-            # Convert to Hourly Optimisation Times
-            # ====================================================
+    inputs_df = pd.read_csv(INPUT_CSV)
 
-            # Departure is rounded DOWN.
-            #
-            # Example:
-            # 05:40 --> 05:00
-            #
-            # This ensures the battery is considered unavailable
-            # for the entire hour containing the departure.
+    # Convert the field_name and value columns into a dictionary
+    inputs = inputs_df.set_index("field_name")["value"].to_dict()
 
-            departure = exact_departure.floor("h")
-
-
-            # Return is rounded UP.
-            #
-            # Example:
-            # 08:25 --> 09:00
-            #
-            # This ensures the battery is not considered available
-            # before the real route has finished.
-
-            return_time = exact_return.ceil("h")
+    # Duration of optimisation study
+    # Units: days
+    DURATION_DAYS = int(float(inputs["duration"]))
+    
+    # Empty truck electricity consumption
+    # Units: kWh/hour
+    P_EMPTY = float(inputs["empty_truck_consumption"])
+    
+    # Additional electricity consumption for every 1000 L carried
+    # Units: kWh/hour per 1000 L
+    P_PAYLOAD_1000L = float(inputs["1000L_truck_consumption"])
 
 
-            # ====================================================
-            # Rounded Route Duration
-            # ====================================================
+    # ========================================================
+    # 2. Read Raw Route Data
+    # ========================================================
 
-            route_duration_hours = (
-                return_time - departure
-            ).total_seconds() / 3600
+    routes_df = pd.read_csv(route_csv)
 
-
-            # ====================================================
-            # Route Energy Requirement
-            # ====================================================
-
-            # Constant truck demand of 150 kW.
-            #
-            # Because duration has been conservatively rounded,
-            # energy demand is also conservatively rounded upward.
-
-            route_energy_kwh = (
-                TRUCK_ENERGY_USE_KW
-                * route_duration_hours
-            )
+    # Rename required columns into names used internally
+    routes_df = routes_df.rename(columns={
+        "Route No": "route_no",
+        "Vol": "volume_l",
+        "Pick Up Time": "departure_time",
+        "Drop Off Time": "return_time"
+    })
 
 
-            # ====================================================
-            # Store Processed Route
-            # ====================================================
+    # ========================================================
+    # 3. Check Required Columns Exist
+    # ========================================================
 
-            routes.append({
-
-                "route_no": route_counter,
-
-                "original_route_no": row["Route No"],
-
-                "date": current_date,
-
-                "departure_time": departure,
-
-                "return_time": return_time,
-
-                "route_duration_hours": route_duration_hours,
-
-                "route_energy_kwh": route_energy_kwh,
-
-                "required_energy_kwh": route_energy_kwh
-            })
-
-
-            route_counter += 1
-
-
-    # ============================================================
-    # Processed Route DataFrame
-    # ============================================================
-
-    routes_df = pd.DataFrame(routes)
-
-
-    # ============================================================
-    # Route Set
-    # ============================================================
-
-    routes = list(routes_df["route_no"])
-
-
-    # ============================================================
-    # Date Set
-    # ============================================================
-
-    dates = [
-        REFERENCE_DATE + pd.Timedelta(days=day)
-        for day in range(NUMBER_OF_DAYS)
+    required_columns = [
+        "route_no",
+        "volume_l",
+        "departure_time",
+        "return_time"
     ]
 
+    missing_columns = [
+        column
+        for column in required_columns
+        if column not in routes_df.columns
+    ]
 
-    # ============================================================
-    # Hourly Time Set
-    # ============================================================
+    if missing_columns:
+        raise ValueError(
+            f"Missing required route columns: {missing_columns}"
+        )
 
-    times = []
 
-    for d in dates:
+    # ========================================================
+    # 4. Convert Route Times to Decimal Hours
+    # ========================================================
 
-        for h in range(24):
+    routes_df["departure_decimal"] = (
+        routes_df["departure_time"]
+        .apply(time_to_hours)
+    )
 
-            times.append(
-                pd.Timestamp(d)
-                + pd.Timedelta(hours=h)
-            )
+    routes_df["return_decimal"] = (
+        routes_df["return_time"]
+        .apply(time_to_hours)
+    )
 
-    times = sorted(times)
 
+    # ========================================================
+    # 5. Round Route Times to Hourly Timesteps
+    # ========================================================
+
+    # Departure is rounded DOWN to the previous whole hour.
+    #
+    # Example:
+    # 05:40 -> 05:00
+
+    routes_df["departure_hour"] = (
+        routes_df["departure_decimal"]
+        .apply(math.floor)
+        .astype(int)
+    )
+
+
+    # Return is rounded UP to the following whole hour.
+    #
+    # Example:
+    # 06:20 -> 07:00
+
+    routes_df["return_hour"] = (
+        routes_df["return_decimal"]
+        .apply(math.ceil)
+        .astype(int)
+    )
+
+
+    # ========================================================
+    # 6. Calculate Rounded Route Duration
+    # ========================================================
+
+    # T_r = T_return,r - T_departure,r
+
+    routes_df["duration_hr"] = (
+        routes_df["return_hour"]
+        - routes_df["departure_hour"]
+    )
+
+
+    # ========================================================
+    # 7. Calculate Route Energy Requirement
+    # ========================================================
+
+    # --------------------------------------------------------
+    # Empty half of route
+    #
+    # E_r,empty = (T_r / 2) * P_empty
+    # --------------------------------------------------------
+
+    routes_df["energy_empty_kwh"] = (
+        routes_df["duration_hr"]
+        / 2
+        * P_EMPTY
+    )
+
+
+    # --------------------------------------------------------
+    # Loaded half of route
+    #
+    # E_r,loaded =
+    #
+    # (T_r / 2)
+    # *
+    # (P_empty + P_payload * V_r / 1000)
+    # --------------------------------------------------------
+
+    routes_df["energy_loaded_kwh"] = (
+        routes_df["duration_hr"]
+        / 2
+        * (
+            P_EMPTY
+            + P_PAYLOAD_1000L
+            * routes_df["volume_l"]
+            / 1000
+        )
+    )
+
+
+    # --------------------------------------------------------
+    # Total route electricity requirement
+    #
+    # E_r = E_r,empty + E_r,loaded
+    # --------------------------------------------------------
+
+    routes_df["route_energy_kwh"] = (
+        routes_df["energy_empty_kwh"]
+        + routes_df["energy_loaded_kwh"]
+    )
+
+
+    # ========================================================
+    # 8. Create Hourly Optimisation Time Set
+    # ========================================================
+    
+    number_of_hours = DURATION_DAYS * 24
+    
+    times = list(range(number_of_hours))
+    
     first_t = times[0]
     last_t = times[-1]
-
-
-    # ============================================================
-    # Previous Timestep
-    # ============================================================
-
+    
     prev_t = {
         times[i]: times[i - 1]
         for i in range(1, len(times))
     }
+    
+    
+    # ========================================================
+    # 9. Repeat Daily Route Schedule Across Study Duration
+    # ========================================================
+    
+    daily_routes_df = routes_df.copy()
+    
+    expanded_routes = []
+    
+    new_route_no = 1
+    
+    for day in range(DURATION_DAYS):
+    
+        for _, row in daily_routes_df.iterrows():
+    
+            route = row.copy()
+    
+            # Store which day this route occurs on
+            route["day"] = day
+    
+            # Give every repeated route a unique route number
+            route["route_no"] = new_route_no
+    
+            # Keep original route number for reference
+            route["original_route_no"] = int(row["route_no"])
+    
+            # Convert daily route times into absolute
+            # optimisation timesteps
+            route["departure_t"] = (
+                int(row["departure_hour"])
+                + day * 24
+            )
+    
+            route["return_t"] = (
+                int(row["return_hour"])
+                + day * 24
+            )
+    
+            expanded_routes.append(route)
+    
+            new_route_no += 1
+    
+    
+    # Convert repeated routes back into a dataframe
+    routes_df = pd.DataFrame(expanded_routes)
 
 
-    # ============================================================
-    # Route Departure
-    # ============================================================
+    # ========================================================
+    # 10. Create Route Set
+    # ========================================================
+    
+    routes = (
+        routes_df["route_no"]
+        .astype(int)
+        .tolist()
+    )
 
-    route_departure = dict(
-        zip(
-            routes_df["route_no"],
-            routes_df["departure_time"]
-        )
+    # ========================================================
+    # 11. Route Departure Dictionary
+    # ========================================================
+    
+    route_departure = (
+        routes_df
+        .set_index("route_no")["departure_t"]
+        .astype(int)
+        .to_dict()
+    )
+
+    # ========================================================
+    # 11. Route Energy Dictionary
+    # ========================================================
+
+    # Example:
+    #
+    # route_energy[1] = 420.0
+    #
+    # means route 1 requires 420 kWh.
+
+    route_energy = (
+        routes_df
+        .set_index("route_no")["route_energy_kwh"]
+        .to_dict()
     )
 
 
-    # ============================================================
-    # Route Return
-    # ============================================================
+    # ========================================================
+    # 12. Routes Departing at Each Time
+    # ========================================================
 
-    routes_ending = dict(
-        zip(
-            routes_df["route_no"],
-            routes_df["return_time"]
-        )
-    )
+    # Your optimiser currently uses:
+    #
+    # routes_departing_at[r] == t
+    #
+    # Therefore this dictionary maps:
+    #
+    # route -> departure timestep
 
+    routes_departing_at = route_departure.copy()
 
-    # ============================================================
-    # Route Energy
-    # ============================================================
-
-    route_energy = dict(
-        zip(
-            routes_df["route_no"],
-            routes_df["required_energy_kwh"]
-        )
-    )
-
-
-    # ============================================================
-    # Route Activity
-    # ============================================================
-
-    route_active = {}
-
-    for r in routes:
-
-        departure = route_departure[r]
-        return_time = routes_ending[r]
-
-        for t in times:
-
-            if departure <= t < return_time:
-
-                route_active[(r, t)] = 1
-
-            else:
-
-                route_active[(r, t)] = 0
-
-
-    # ============================================================
-    # Route Departure Timestep
-    # ============================================================
-
-    # Departure is already an exact hourly timestamp,
-    # so no further rounding is required.
-
-    route_departure_t = {
-        r: route_departure[r]
-        for r in routes
+    
+    # ========================================================
+    # 14. Routes Ending at Each Time
+    # ========================================================
+    
+    routes_ending = {
+        t: []
+        for t in times
     }
+    
+    for _, row in routes_df.iterrows():
+    
+        r = int(row["route_no"])
+        return_t = int(row["return_t"])
+    
+        if return_t in routes_ending:
+            routes_ending[return_t].append(r)
+
+    # ========================================================
+    # 15. Route Activity Dictionary
+    # ========================================================
+    
+    route_active = {}
+    
+    for _, row in routes_df.iterrows():
+    
+        r = int(row["route_no"])
+    
+        departure_t = int(row["departure_t"])
+        return_t = int(row["return_t"])
+    
+        for t in times:
+    
+            if departure_t <= t < return_t:
+                route_active[r, t] = 1
+    
+            else:
+                route_active[r, t] = 0
+
+    # ========================================================
+    # 15. Dates
+    # ========================================================
+
+    dates = list(range(DURATION_DAYS))
 
 
-    # ============================================================
-    # Candidate Batteries / Chargers
-    # ============================================================
+    # ========================================================
+    # 16. Candidate Batteries and Chargers
+    # ========================================================
+
+    # Maximum possible number of batteries is taken as one
+    # battery per route.
+    #
+    # The optimiser will decide how many of these candidates
+    # are actually required.
 
     batteries = list(
-        range(1, len(routes_df) + 1)
+        range(1, len(routes) + 1)
     )
+
+
+    # Candidate charger set.
+    #
+    # The optimiser currently selects the actual number of
+    # chargers using N_CS.
 
     chargers = list(
-        range(1, len(routes_df) + 1)
+        range(1, len(routes) + 1)
     )
 
 
-    # ============================================================
-    # Return Processed Data
-    # ============================================================
+    # ========================================================
+    # 17. Display Processed Route Data
+    # ========================================================
+
+    print("\nProcessed Route Data")
+    print("=" * 100)
+
+    print(
+        routes_df[
+            [
+                "route_no",
+                "volume_l",
+                "departure_time",
+                "return_time",
+                "departure_hour",
+                "return_hour",
+                "duration_hr",
+                "energy_empty_kwh",
+                "energy_loaded_kwh",
+                "route_energy_kwh"
+            ]
+        ].to_string(index=False)
+    )
+
+
+    # ========================================================
+    # 18. Return Data to Optimiser
+    # ========================================================
 
     return (
         routes_df,
@@ -313,7 +436,7 @@ def process_route_data(ROUTE_CSV):
         routes_ending,
         route_energy,
         route_active,
-        route_departure_t,
+        routes_departing_at,
         batteries,
-        chargers,
+        chargers
     )

@@ -6,8 +6,7 @@ Uses times/first_t/prev_t like the rest of the model, and treats
 BESS capacity as something the optimiser solves for, not a fixed input.
 
 Note: charge_power/discharge_power and grid_import/pv_export both
-describe energy moving in and out of the BESS. Check with Declan
-whether these overlap before this replaces his inline block.
+describe energy moving in and out of the BESS. 
 """
 
 import gurobipy as gp

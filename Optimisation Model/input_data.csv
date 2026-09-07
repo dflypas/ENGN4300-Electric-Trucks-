@@ -1,0 +1,48 @@
+field_name,value,category,variable_type,variable_name,data_type,unit,description
+duration,30,Study_Inputs,parameter,D,int,days,Duration of study in days
+max_candidate_batteries,8,Battery_Inputs,parameter,N_SB_max,int,batteries,Maximum number of candidate swappable batteries
+time_step_dt,1,Economic_Inputs,parameter,dt,float,hours,Simulation time step
+year,2026,Location_Inputs,parameter,year,int,year,Assessment year
+latitude,-36.674,Location_Inputs,parameter,latitude,float,degrees,Site latitude
+longitude,149.842,Location_Inputs,parameter,longitude,float,degrees,Site longitude
+truck_consumption,100,Truck_Inputs,parameter,P_truck,float,kWh/h,Constant truck energy consumption while on route
+pv_panel_efficiency,0.2,Energy_Production_Inputs,parameter,eta_pv,float,%,Efficiency of the solar panels
+max_panel_area,460,Energy_Production_Inputs,parameter,A_pv_max,float,m2,Available space for solar panels
+pv_capex_per_w,0.96,Economic_Inputs,parameter,C_PV,float,AUD/kW,PV installation capital cost
+peak_grid_electricity_price,0.3,Energy_Production_Inputs,parameter,c_g_peak,float,AUD/kWh,Peak grid electricity purchase price
+offpeak_grid_electricity_price,0.15,Energy_Production_Inputs,parameter,c_g_offpeak,float,AUD/kWh,Off-peak grid electricity purchase price
+feed_in_tariff,0.08,Energy_Production_Inputs,parameter,r,float,AUD/kWh,Price received for electricity exported to the grid
+max_grid_import_capacity,2000,Energy_Production_Inputs,parameter,P_grid_import_max,float,kW,Maximum grid import capacity
+max_grid_export_capacity,1000,Energy_Production_Inputs,parameter,P_grid_export_max,float,kW,Maximum grid export capacity
+sb_max_capacity,900,Battery_Inputs,parameter,E_SB_max,float,kWh,Maximum swappable battery energy capacity
+sb_charge_efficiency,0.95,Battery_Inputs,parameter,eta_SB_c,float,%,Swappable battery charging efficiency
+sb_discharge_efficiency,0.95,Battery_Inputs,parameter,eta_SB_d,float,%,Swappable battery discharging efficiency
+sb_initial_soc,0.8,Battery_Inputs,parameter,SOC_SB_initial,float,%,Initial swappable battery state of charge
+sb_min_soc,0.2,Battery_Inputs,parameter,SOCmin,float,%,Minimum allowed swappable battery state of charge
+sb_max_soc,1,Battery_Inputs,parameter,SOCmax,float,%,Maximum allowed swappable battery state of charge
+sb_charge_rate,250,Battery_Inputs,parameter,P_SB_charge,float,kW,Maximum swappable battery charging power
+charger_power,250,Charger_Inputs,parameter,P_CS,float,kW,Maximum charging power per charger
+battery_cost,100000,Economic_Inputs,parameter,C_SB,float,AUD/battery,Capital cost per swappable battery
+charger_cost,50000,Economic_Inputs,parameter,C_CS,float,AUD/charger,Capital cost per charger
+BESS_initial_soc,0.5,BESS_Inputs,parameter,SOC_BESS_initial,float,%,Initial stationary battery state of charge
+BESS_min_soc,0.2,BESS_Inputs,parameter,SOC_BESS_min,float,%,Minimum stationary battery state of charge
+BESS_max_soc,1,BESS_Inputs,parameter,SOC_BESS_max,float,%,Maximum stationary battery state of charge
+bess_capex_per_kwh,500,Economic_Inputs,parameter,C_BESS,float,AUD/kWh,Stationary battery capital cost per kWh
+retrofit_cost_per_truck,150000,Economic_Inputs,parameter,C_retro,float,AUD/truck,Electric retrofit cost per truck
+n_total_trucks,8,Truck_Inputs,parameter,N_trucks,int,trucks,Total number of trucks
+diesel_fleet_annual_km,500000,Truck_Inputs,parameter,D_diesel,float,km/year,Annual distance travelled by diesel fleet
+diesel_price_per_km,0.6,Economic_Inputs,parameter,C_diesel,float,AUD/km,Diesel vehicle operating cost per kilometre
+discount_rate,0.07,Economic_Inputs,parameter,r_discount,float,%,Project discount rate
+project_lifetime,10,Economic_Inputs,parameter,L_project,float,years,Project assessment lifetime
+sb_lifetime,8,Economic_Inputs,parameter,L_SB,float,years,Swappable battery useful life
+charger_lifetime,15,Economic_Inputs,parameter,L_CS,float,years,Charger useful life
+bess_lifetime,10,Economic_Inputs,parameter,L_BESS,float,years,Stationary battery useful life
+pv_lifetime,25,Economic_Inputs,parameter,L_PV,float,years,PV system useful life
+retrofit_lifetime,10,Economic_Inputs,parameter,L_retro,float,years,Truck retrofit useful life
+sb_maintenance_rate,0.02,Economic_Inputs,parameter,CM_SB,float,%/year,Annual swappable battery maintenance rate
+charger_maintenance_rate,0.02,Economic_Inputs,parameter,CM_CS,float,%/year,Annual charger maintenance rate
+bess_maintenance_rate,0.02,Economic_Inputs,parameter,CM_BESS,float,%/year,Annual stationary battery maintenance rate
+pv_maintenance_rate,0.015,Economic_Inputs,parameter,CM_PV,float,%/year,Annual PV maintenance rate
+retrofit_maintenance_rate,0.03,Economic_Inputs,parameter,CM_RETRO,float,%/year,Annual truck retrofit maintenance rate
+panel_size,1.87,Energy_Production_Inputs,parameter,,float,m2,The average size of the panels for counting
+max_num_panels,240,Energy_Production_Inputs,parameter,,float,panels,The maximum number of panels for the roof

@@ -58,22 +58,33 @@ class RouteDataProcessor:
 
         self.routes = (self.routes_df["route_no"].astype(int).tolist())
         self.trucks = sorted(self.routes_df["Truck No"].astype(int).unique().tolist())
-        self.route_truck = dict(zip(self.routes_df["route_no"].astype(int),self.routes_df["Truck No"].astype(int)))
-
+        self.route_truck = dict(zip(self.routes_df["route_no"].astype(int), self.routes_df["Truck No"].astype(int)))
 
         # --------------------------------------------------------
         # Route departure and return times
         # --------------------------------------------------------
 
-        self.route_departure = dict(zip(self.routes_df["route_no"].astype(int),self.routes_df["departure_t"].astype(int)))
-        self.route_return = dict(zip(self.routes_df["route_no"].astype(int),self.routes_df["return_t"].astype(int)))
+        self.route_departure = dict(zip(self.routes_df["route_no"].astype(int), self.routes_df["departure_t"].astype(int)))
+        self.route_return = dict(zip(self.routes_df["route_no"].astype(int), self.routes_df["return_t"].astype(int)))
 
         # --------------------------------------------------------
         # Route energy requirement
         # --------------------------------------------------------
-        
-        self.route_energy = {r: (self.route_return[r] - self.route_departure[r]) * self.truck_consumption for r in self.routes}
-        
+
+        # Estimated EV battery energy required per litre of diesel replaced.
+        # Units: kWh/L diesel
+        kwh_per_litre_diesel_equivalent = 4.469729345
+
+        self.route_diesel_used = dict(zip(
+            self.routes_df["route_no"].astype(int),
+            self.routes_df["Diesel Used"].astype(float)
+        ))
+
+        self.route_energy = {
+            r: self.route_diesel_used[r] * kwh_per_litre_diesel_equivalent
+            for r in self.routes
+        }
+
         # --------------------------------------------------------
         # Routes and Trucks active at each timestep
         # --------------------------------------------------------
@@ -81,7 +92,7 @@ class RouteDataProcessor:
         self.active_routes_at = {t: [] for t in self.times}
 
         for r in self.routes:
-            for t in range(self.route_departure[r],self.route_return[r]):
+            for t in range(self.route_departure[r], self.route_return[r]):
                 if t in self.active_routes_at:
                     self.active_routes_at[t].append(r)
 
@@ -95,7 +106,7 @@ class RouteDataProcessor:
 
         for day in range(self.duration_days):
             day_routes = (self.routes_df[self.routes_df["day"] == day]["route_no"].astype(int).tolist())
-            
+
             for i in range(len(day_routes)):
                 for j in range(i + 1, len(day_routes)):
                     r1 = day_routes[i]
@@ -106,9 +117,9 @@ class RouteDataProcessor:
         # --------------------------------------------------------
         # Routes Departing at
         # --------------------------------------------------------
-        
+
         self.routes_departing_at = {t: [] for t in self.times}
-        
+
         for r in self.routes:
             if self.route_departure[r] in self.routes_departing_at:
                 self.routes_departing_at[self.route_departure[r]].append(r)
@@ -119,10 +130,6 @@ class RouteDataProcessor:
 
         self.route_pre_departure = {r: max(self.times[0], self.route_departure[r] - 1) for r in self.routes}
 
-
-# Km annual for diesel
-# Energy use diesel per hour
-# litres per route
 
 
 

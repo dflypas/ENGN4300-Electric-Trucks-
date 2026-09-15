@@ -55,8 +55,20 @@ def optimiser(
     route_pre_departure,    # t_pre(r)
     
     aux_load_t,             # P_aux(t)
+    route_diesel_used=None, # litres of diesel used per route, L/run
+    enable_battery_symmetry_breaking=False,
 ):
     
+    # ============================================================
+    # Tight Implied Bounds
+    # ============================================================
+    # These bounds are already implied by the existing constraints.
+    # They do not change the feasible solution space; they simply give
+    # Gurobi tighter limits up front, which can improve presolve and RAM use.
+    bess_charge_bound = min(bess_max_charge_power, bess_charge_c_rate * bess_max_cap)
+    bess_discharge_bound = min(bess_max_discharge_power, bess_discharge_c_rate * bess_max_cap)
+    grid_import_bound = min(max_grid_import, max_grid_capacity)
+    grid_export_bound = min(max_grid_export, max_grid_capacity)
     
     
     # ============================================================
@@ -84,23 +96,23 @@ def optimiser(
     a = m.addVars(routes, batteries, vtype=GRB.BINARY, name="a")
     x_SB_ch = m.addVars(batteries, times, vtype=GRB.BINARY, name="x_SB_ch")
     
-    E_SB = m.addVars(batteries, times, vtype=GRB.CONTINUOUS, lb=0, name="E_SB")
-    P_SB_ch = m.addVars(batteries, times, vtype=GRB.CONTINUOUS, lb=0, name="P_SB_ch")
+    E_SB = m.addVars(batteries, times, vtype=GRB.CONTINUOUS, lb=0, ub=sb_max_soc * sb_cap, name="E_SB")
+    P_SB_ch = m.addVars(batteries, times, vtype=GRB.CONTINUOUS, lb=0, ub=sb_max_charge_power, name="P_SB_ch")
     
-    Q_BESS = m.addVar(vtype=GRB.CONTINUOUS, lb=0, name="Q_BESS")
-    P_BESS_ch_inst = m.addVar(vtype=GRB.CONTINUOUS, lb=0, name="P_BESS_ch_inst")
-    P_BESS_dis_inst = m.addVar(vtype=GRB.CONTINUOUS, lb=0, name="P_BESS_dis_inst")
-    E_BESS = m.addVars(times, vtype=GRB.CONTINUOUS, lb=0, name="E_BESS")
-    P_BESS_ch = m.addVars(times, vtype=GRB.CONTINUOUS, lb=0, name="P_BESS_ch")
-    P_BESS_dis = m.addVars(times, vtype=GRB.CONTINUOUS, lb=0, name="P_BESS_dis")
+    Q_BESS = m.addVar(vtype=GRB.CONTINUOUS, lb=0, ub=bess_max_cap, name="Q_BESS")
+    P_BESS_ch_inst = m.addVar(vtype=GRB.CONTINUOUS, lb=0, ub=bess_max_charge_power, name="P_BESS_ch_inst")
+    P_BESS_dis_inst = m.addVar(vtype=GRB.CONTINUOUS, lb=0, ub=bess_max_discharge_power, name="P_BESS_dis_inst")
+    E_BESS = m.addVars(times, vtype=GRB.CONTINUOUS, lb=0, ub=bess_max_soc * bess_max_cap, name="E_BESS")
+    P_BESS_ch = m.addVars(times, vtype=GRB.CONTINUOUS, lb=0, ub=bess_charge_bound, name="P_BESS_ch")
+    P_BESS_dis = m.addVars(times, vtype=GRB.CONTINUOUS, lb=0, ub=bess_discharge_bound, name="P_BESS_dis")
     x_BESS = m.addVars(times, vtype=GRB.BINARY, name="x_BESS")
 
     E_PV_cap = m.addVar(vtype=GRB.CONTINUOUS, lb=0, ub=pv_max_kw, name="E_PV_cap")
     P_PV_generated = m.addVars(times, vtype=GRB.CONTINUOUS, lb=0, name="P_PV_generated")    
     
-    S_G = m.addVar(vtype=GRB.CONTINUOUS, lb=0, name="S_G")
-    P_G_imp = m.addVars(times, vtype=GRB.CONTINUOUS, lb=0, name="P_G_imp")
-    P_G_exp = m.addVars(times, vtype=GRB.CONTINUOUS, lb=0, name="P_G_exp")
+    S_G = m.addVar(vtype=GRB.CONTINUOUS, lb=0, ub=max_grid_capacity, name="S_G")
+    P_G_imp = m.addVars(times, vtype=GRB.CONTINUOUS, lb=0, ub=grid_import_bound, name="P_G_imp")
+    P_G_exp = m.addVars(times, vtype=GRB.CONTINUOUS, lb=0, ub=grid_export_bound, name="P_G_exp")
     x_G = m.addVars(times, vtype=GRB.BINARY, name="x_G")
     
     # ============================================================
@@ -133,6 +145,16 @@ def optimiser(
     
     # SB1. Number of Swappable Batteries Purchased
     m.addConstr(N_SB == gp.quicksum(w[b] for b in batteries), name="SB1_NumberSwappableBatteries")
+
+    # SB1A. Symmetry Breaking for Identical Candidate Batteries
+    # Candidate batteries use the same capacity, cost, efficiency and operating
+    # constraints. Requiring lower-index batteries to be purchased first removes
+    # duplicate labelled solutions without removing any distinct physical design.
+    if enable_battery_symmetry_breaking:
+        ordered_batteries = list(batteries)
+        for b_idx in range(len(ordered_batteries) - 1):
+            b, b_next = ordered_batteries[b_idx], ordered_batteries[b_idx + 1]
+            m.addConstr(w[b] >= w[b_next], name=f"SB1A_BatterySymmetry[{b},{b_next}]")
     
     # SB2. One Battery per Electric Route
     for r in routes: 
@@ -143,35 +165,25 @@ def optimiser(
         for b in batteries: 
             m.addConstr(a[r, b] <= w[b], name=f"SB3_OnlyPurchasedBattery[{r},{b}]")
     
-    # SB4. A Battery Cannot Serve Overlapping Routes
-    for b in batteries:
-        for t in times: 
-            m.addConstr(gp.quicksum(a[r, b] for r in active_routes_at[t]) <= w[b], name=f"SB4_NoOverlappingRoutes[{b},{t}]")
-         
     # ============================================================
     # 6. Swappable Battery Charging and Charger Assignment
     # ============================================================
     
-    # Battery can only charge if purchased
-    for b in batteries:
-        for t in times:
-            m.addConstr(x_SB_ch[b, t] <= w[b], name=f"C1_OnlyPurchasedBattery[{b},{t}]")
-    
-    # Battery cannot charge while on a route
+    # C2. Battery Cannot Charge While on a Route
     for b in batteries:
         for t in times:
             m.addConstr(x_SB_ch[b, t] + gp.quicksum(a[r, b] for r in active_routes_at[t]) <= w[b], name=f"C2_NoChargeWhileRoute[{b},{t}]")
     
-    # Battery charging power limit
+    # C3. Battery Charging Power Limit
     for b in batteries:
         for t in times:
             m.addConstr(P_SB_ch[b, t] <= sb_max_charge_power * x_SB_ch[b, t], name=f"C3_BatteryChargePower[{b},{t}]")
     
-    # Number of batteries charging cannot exceed number of chargers
+    # C4. Number of Batteries Charging Cannot Exceed Number of Chargers
     for t in times:
         m.addConstr(gp.quicksum(x_SB_ch[b, t] for b in batteries) <= N_CS, name=f"C4_ChargerCount[{t}]")
     
-    # Total charging power cannot exceed installed charger power
+    # C5. Total Charging Power Cannot Exceed Installed Charger Power
     for t in times:
         m.addConstr(gp.quicksum(P_SB_ch[b, t] for b in batteries) <= N_CS * charger_power_kw, name=f"C5_TotalChargerPower[{t}]")
     # ============================================================
@@ -221,13 +233,13 @@ def optimiser(
     # B4. BESS Charging-Power Limits
     for t in times:
         m.addConstr(P_BESS_ch[t] <= P_BESS_ch_inst, name=f"B4_InstalledChargePower[{t}]")
-        m.addConstr(P_BESS_ch[t] <= bess_max_charge_power * x_BESS[t], name=f"B4_ChargeMode[{t}]")
+        m.addConstr(P_BESS_ch[t] <= bess_charge_bound * x_BESS[t], name=f"B4_ChargeMode[{t}]")
         m.addConstr(P_BESS_ch[t] <= bess_charge_c_rate * Q_BESS, name=f"B4_ChargeCRate[{t}]")
     
     # B5. BESS Discharging-Power Limits
     for t in times:
         m.addConstr(P_BESS_dis[t] <= P_BESS_dis_inst, name=f"B5_InstalledDischargePower[{t}]")
-        m.addConstr(P_BESS_dis[t] <= bess_max_discharge_power * (1 - x_BESS[t]), name=f"B5_DischargeMode[{t}]")
+        m.addConstr(P_BESS_dis[t] <= bess_discharge_bound * (1 - x_BESS[t]), name=f"B5_DischargeMode[{t}]")
         m.addConstr(P_BESS_dis[t] <= bess_discharge_c_rate * Q_BESS, name=f"B5_DischargeCRate[{t}]")
     
     # B7. BESS State-of-Energy Balance
@@ -269,11 +281,11 @@ def optimiser(
     
     # G4. Grid Import-Mode and Network Limit
     for t in times: 
-        m.addConstr(P_G_imp[t] <= max_grid_import * x_G[t], name=f"G4_GridImportMode[{t}]")
+        m.addConstr(P_G_imp[t] <= grid_import_bound * x_G[t], name=f"G4_GridImportMode[{t}]")
     
     # G5. Grid Export-Mode and Network Limit
     for t in times: 
-        m.addConstr(P_G_exp[t] <= max_grid_export * (1 - x_G[t]), name=f"G5_GridExportMode[{t}]")
+        m.addConstr(P_G_exp[t] <= grid_export_bound * (1 - x_G[t]), name=f"G5_GridExportMode[{t}]")
 
 
     # ============================================================
@@ -303,8 +315,18 @@ def optimiser(
     # Annual revenue from electricity exported to grid
     an_op_grid_exp = gp.quicksum(P_G_exp[t] * dt * spot_price_t[t] / 1000 for t in times)
     
-    # Diesel truck energy cost
-    an_op_diesel = gp.quicksum((route_return[r] - route_departure[r]) * diesel_truck_consumption * diesel_price_t[route_year[r]] * (1 - z[route_truck[r], route_year[r]]) for r in routes)
+    # Diesel truck operating cost
+    # route_diesel_used[r] is the measured diesel used for route r in litres/run.
+    # diesel_price_t[route_year[r]] is therefore assumed to be in AUD/L.
+    if route_diesel_used is None:
+        raise ValueError("route_diesel_used must be supplied as a dictionary keyed by route number.")
+
+    an_op_diesel = gp.quicksum(
+        route_diesel_used[r]
+        * diesel_price_t[route_year[r]]
+        * (1 - z[route_truck[r], route_year[r]])
+        for r in routes
+    )
     
     # Total annual operating cost
     an_op = (an_op_grid_imp - an_op_grid_exp + an_op_diesel)
@@ -396,6 +418,15 @@ def optimiser(
     # ============================================================
     # Optimise
     # ============================================================
+
+    # Finalise the model and print model-size diagnostics before solving.
+    # This is useful for comparing RAM/model growth between different horizons.
+    m.update()
+
+    print("Variables:", m.NumVars)
+    print("Constraints:", m.NumConstrs)
+    print("Nonzeros:", m.NumNZs)
+    m.printStats()
     
     start_time = time.time()
     

@@ -28,10 +28,7 @@ INPUT_DIR = os.path.dirname(os.path.abspath(__file__))
 # ============================================================
 # Cached helper: PV profile generation
 # ============================================================
-# This does not depend on any of the live UI sliders (batteries,
-# chargers, PV area, grid import limit, discount rate), only on
-# year/lat/lon — so it's cached to avoid re-running pvlib's solar
-# calculations on every "Run Optimisation" click.
+
 @lru_cache(maxsize=8)
 def _get_pv_profile(assessment_year, latitude, longitude):
     energy_data_processor = ep.EnergyDataProcessor(assessment_year, latitude, longitude)
@@ -188,11 +185,6 @@ def run_pipeline(overrides=None, time_limit=None, mip_gap=0.05):
     diesel_price_df = pd.read_csv(os.path.join(INPUT_DIR, "Diesel Price Prediction.csv"))
     diesel_values = diesel_price_df["Price"].tolist()
 
-    # FIX: DIESEL_PRICE_T is read in updated_optimiser.py as
-    # diesel_price_t[route_year[r]] — i.e. keyed by YEAR INDEX,
-    # not by timestep. Previously this was built keyed by TIMES,
-    # which silently returned the price from the first few hours
-    # of the simulation instead of the correct year's price.
     DIESEL_PRICE_T = dict(zip(YEARS, diesel_values[:len(YEARS)]))
 
     ROUTES = route_data_processor.routes

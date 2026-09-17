@@ -5,21 +5,6 @@ Created on Mon Sep  7 13:21:23 2026
 
 @author: mollyrobertson
 
-This version merges two previously-separate branches of work:
-
-  A) Tier 1 speed fixes (none change the feasible region or optimum):
-     1. Solver params restored (MIPFocus/Method/Symmetry/Heuristics);
-        Presolve at default. Cuts=1 + CutPasses=10 (tuned after logs
-        showed Cuts=2 over-investing in Relax-and-lift rounds and the
-        model never actually branching - NodeCount=1 every run).
-     2. SB4 and C1 removed - both implied by C2.
-     3. Implied bounds moved onto variable declarations.
-     4. Battery symmetry-breaking constraint.
-     5. Diesel-baseline warm start (.Start).
-
-  B) Matrix-API conversion of SB1-3, C2-5, SOC1-5 and E1 (w, a, x_SB_ch,
-     E_SB, P_SB_ch are now MVar rather than dict addVars). SB4/C1 are
-     gone from this list since (A)2 already removed them.
 """
 
 import numpy as np
@@ -83,8 +68,7 @@ def optimiser(
     # ============================================================
     # Tight Implied Bounds
     # ============================================================
-    # These are already implied by the existing constraints below - they
-    # do not change the feasible region, they just give Gurobi tighter
+    # Give Gurobi tighter
     # limits up front for presolve and LP conditioning.
     bess_charge_bound = min(bess_max_charge_power, bess_charge_c_rate * bess_max_cap)
     bess_discharge_bound = min(bess_max_discharge_power, bess_discharge_c_rate * bess_max_cap)

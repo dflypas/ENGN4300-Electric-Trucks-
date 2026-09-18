@@ -390,8 +390,12 @@ def optimiser(
     else:
         an_op_grid_exp = gp.quicksum(P_G_exp[t] * dt * feed_in_tariff_t[t] for t in times)
 
-    # Diesel truck energy cost
-    an_op_diesel = gp.quicksum((route_return[r] - route_departure[r]) * diesel_truck_consumption * diesel_price_t[route_year[r]] * (1 - z[route_truck[r], route_year[r]]) for r in routes)
+    # Diesel truck operating cost
+    # route_diesel_used[r] = litres consumed per route
+    # diesel_price_t[y] = AUD/L
+    an_op_diesel = gp.quicksum(
+        route_diesel_used[r]* diesel_price_t[route_year[r]]* (1 - z[route_truck[r], route_year[r]]) for r in routes)
+
 
     # Total annual operating cost
     an_op = (an_op_grid_imp - an_op_grid_exp + an_op_diesel)

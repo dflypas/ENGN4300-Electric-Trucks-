@@ -17,7 +17,7 @@ import time
 
 
 def optimiser(
-    routes, trucks, times, route_truck, active_routes_at, route_energy, route_departure, route_return, overlapping_routes,
+    routes, trucks, times, route_truck, active_routes_at, route_energy, route_diesel_used, route_departure, route_return, overlapping_routes,
     pv_profiles_t, spot_price_t, sell_price_t, grid_price_t, feed_in_tariff_t, whole_market,
 
     diesel_truck_consumption, diesel_cost_per_kwh, diesel_price_t,

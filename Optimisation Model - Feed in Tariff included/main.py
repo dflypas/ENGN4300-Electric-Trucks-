@@ -199,6 +199,7 @@ def run_pipeline(overrides=None, time_limit=None, mip_gap=0.05):
     ROUTE_RETURN = route_data_processor.route_return
     ROUTE_PRE_DEPARTURE = route_data_processor.route_pre_departure
     ROUTE_ENERGY = route_data_processor.route_energy
+    ROUTE_DIESEL_USED = route_data_processor.route_diesel_used
     ACTIVE_ROUTES_AT = route_data_processor.active_routes_at
     ROUTES_DEPARTING_AT = route_data_processor.routes_departing_at
     OVERLAPPING_ROUTES = route_data_processor.overlapping_routes

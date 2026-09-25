@@ -1,0 +1,60 @@
+field_name,value,category,variable_type,variable_name,data_type,unit,description
+duration,100,Study_Inputs,parameter,D,int,days,Duration of study in days
+year,2026,Location_Inputs,parameter,year,int,year,Assessment year used by the PV/weather processor
+latitude,-36.674,Location_Inputs,parameter,latitude,float,degrees,Site latitude
+longitude,149.842,Location_Inputs,parameter,longitude,float,degrees,Site longitude
+dt,1,Study_Inputs,parameter,Δt,float,h,Duration of one operational timestep
+max_candidate_batteries,8,Battery_Inputs,parameter,B_max,int,batteries,Safe upper bound on the number of candidate swappable batteries
+max_candidate_chargers,8,Charger_Inputs,parameter,C_max,int,chargers,Maximum number of candidate charger positions/options represented in the model
+n_trucks,8,Truck_Inputs,parameter,N_fleet(y),int,trucks,Fleet size; current implementation assumes the same fleet size across model years
+SB_cap_max,900,Battery_Inputs,parameter,Q_SB,float,kWh,Rated energy capacity of one swappable battery
+SOC_SB_min,0.2,Battery_Inputs,parameter,"SOC_SB,min",float,fraction,Minimum permitted swappable-battery state of charge
+SOC_SB_max,1,Battery_Inputs,parameter,"SOC_SB,max",float,fraction,Maximum permitted swappable-battery state of charge
+SOC_SB_0,0.8,Battery_Inputs,parameter,"SOC_SB,0",float,fraction,Initial swappable-battery state of charge
+SB_efficiency_charge,0.95,Battery_Inputs,parameter,"η_SB,ch",float,fraction,Combined efficiency from depot charging power to stored swappable-battery energy
+SB_efficiency_discharge,0.95,Battery_Inputs,parameter,"η_SB,dis",float,fraction,Swappable-battery discharge efficiency; not required if route energy is already battery-side
+SB_self_discharge,0,Battery_Inputs,parameter,ρ_SB,float,fraction/timestep,Fraction of stored swappable-battery energy retained over one timestep
+SB_max_charge_power,250,Battery_Inputs,parameter,"P_SB,ch,max",float,kW,Maximum site-side charging power permitted for one swappable battery
+C_charge,250,Charger_Inputs,parameter,P_rated(c),float,kW,Rated power of each candidate charger; current model assumes identical chargers
+BESS_initial_soc,0.5,BESS_Inputs,parameter,"SOC_BESS,0",float,fraction,Initial stationary-BESS state of charge
+BESS_min_soc,0.1,BESS_Inputs,parameter,"SOC_BESS,min",float,fraction,Minimum permitted stationary-BESS state of charge
+BESS_max_soc,0.9,BESS_Inputs,parameter,"SOC_BESS,max",float,fraction,Maximum permitted stationary-BESS state of charge
+BESS_cap_max,10000000,BESS_Inputs,parameter,"Q_BESS,max",float,kWh,Maximum feasible stationary-BESS energy capacity
+BESS_charge,2000,BESS_Inputs,parameter,"P_BESS,ch,max",float,kW,Maximum feasible installed BESS charging-power capacity
+BESS_discharge,2000,BESS_Inputs,parameter,"P_BESS,dis,max",float,kW,Maximum feasible installed BESS discharging-power capacity
+BESS_efficiency_charge,0.9,BESS_Inputs,parameter,"η_BESS,ch",float,fraction,BESS charging efficiency
+BESS_efficiency_discharge,0.9,BESS_Inputs,parameter,"η_BESS,dis",float,fraction,BESS discharging efficiency
+BESS_self_discharge,0,BESS_Inputs,parameter,ρ_BESS,float,fraction/timestep,Fraction of stored BESS energy retained over one timestep
+BESS_charge_c_rate,0.5,,,,,,
+BESS_discharge_c_rate,0.5,,,,,,
+GRID_max_import,2000,Grid_Inputs,parameter,"P_G,imp,max(t)",float,kW,Network/import upper limit; current model uses a constant value over time
+GRID_max_export,1000,Grid_Inputs,parameter,"P_G,exp,max(t)",float,kW,Network/export upper limit; current model uses a constant value over time
+GRID_existing_capacity,1000,,,,,,
+GRID_max_capacity,3000,,,,,,
+GRID_onpeak_price,0.3,Grid_Inputs,parameter,,float,$/kWh,Off peak price of grid electricity
+GRID_offpeak_price,0.15,Grid_Inputs,parameter,,float,$/kWh,On peak price of grid electricity
+PV_efficiency,0.2,Energy_Production_Inputs,parameter,η_PV,float,fraction,PV panel efficiency
+PV_max_kw,5000,Energy_Production_Inputs,parameter,"A_PV,max",float,m2,Maximum available area for PV panels
+C_CAPEX,50000,Economic_Inputs,parameter,C_CS,float,AUD/charger,Charger purchase and installation cost
+SB_CAPEX,350000,Economic_Inputs,parameter,C_SB,float,AUD/battery,Swappable battery purchase cost
+PV_CAPEX_per_kw,0.04,Economic_Inputs,parameter,C_PV,float,AUD/kW,PV installation capital cost
+BESS_CAPEX_per_kw,150,Economic_Inputs,parameter,C_BESS,float,AUD/kWh,Stationary BESS capital cost per installed kWh
+RETROFIT_CAPEX,175000,Economic_Inputs,parameter,C_retrofit,float,AUD/truck,Truck retrofit capital cost
+DIESEL_CAPEX,250000,,,,,,
+SB_L,15,Economic_Inputs,parameter,L_SB,float,years,Swappable-battery useful life
+C_L,15,Economic_Inputs,parameter,L_CS,float,years,Charger useful life
+BESS_L,15,Economic_Inputs,parameter,L_BESS,float,years,Stationary-BESS useful life
+PV_L,15,Economic_Inputs,parameter,L_PV,float,years,PV useful life
+RETROFIT_L,15,Economic_Inputs,parameter,L_retrofit,float,years,Truck retrofit useful life
+DIESEL_L,15,,,,,,
+SB_OM,0.01,Economic_Inputs,parameter,OM_SB,float,fraction/year,Annual swappable-battery maintenance rate
+C_OM,0.01,Economic_Inputs,parameter,OM_CS,float,fraction/year,Annual charger maintenance rate
+BESS_OM,0.01,Economic_Inputs,parameter,OM_BESS,float,fraction/year,Annual BESS maintenance rate
+PV_OM,0.01,Economic_Inputs,parameter,OM_PV,float,fraction/year,Annual PV maintenance rate
+RETROFIT_OM,0.01,Economic_Inputs,parameter,OM_retrofit,float,fraction/year,Annual truck retrofit maintenance rate
+DIESEL_OM,0.15,Economic_Inputs,parameter,OM_diesel,float,fraction/year,Annual diesel truck maintenance rate
+discount_rate,0.05,Economic_Inputs,parameter,r_discount,float,fraction,Annual discount rate
+Wholesale Market,1,Grid_Inputs,parameter,,,,Is the location on the wholesale market (Spot price) (1) or is it a regular grid connection (0)
+F_I_T_on_peak,0.02,Grid_Inputs,parameter,FIT_on_peak,float,$/kWh,Feed in tariff value during the day between 10am to 3pm
+F_I_T_off_peak,0.18,Grid_Inputs,parameter,FIT_off_peak,float,$/kWh,Feed in tariff value during the night between 4pm to 9pm
+F_I_T_flat,0.05,Grid_Inputs,parameter,FIT_flat,float,$/kWh,Feed in tariff value during the night between 9pm to 10am

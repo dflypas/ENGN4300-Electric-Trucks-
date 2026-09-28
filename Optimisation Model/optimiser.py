@@ -19,9 +19,9 @@ import time
 def optimiser(
     routes, trucks, times, route_truck, active_routes_at, route_energy, route_diesel_used, route_departure, route_return, overlapping_routes,
     pv_profiles_t, pv_min, spot_price_t, grid_price_t, feed_in_tariff_t, whole_market, month_limits, months, df_data, dict_limits, network_access_cost,
-    diesel_price_t,
+    diesel_price,
 
-    duration_days, dt, years, first_t, last_t, batteries, chargers,
+    duration_days, dt, first_t, last_t, batteries, chargers,
     n_trucks,
 
     sb_cap, sb_min_soc, sb_max_soc, sb_initial_soc, sb_charge_efficiency, sb_cap_min,
@@ -46,15 +46,12 @@ def optimiser(
     sb_lifetime, charger_lifetime, bess_lifetime, pv_lifetime, retrofit_lifetime, diesel_lifetime, 
 
     sb_om, charger_om, bess_om, pv_om, retrofit_om, diesel_om,
+    
+    fleet_size,
+    truck_base_electric,
 
-    route_year,             # y(r)
-    trucks_in_year,         # I(y)
-    fleet_size,             # N_fleet(y)
-    truck_first_year,       # y_first(i)
-    truck_base_electric,    # z_base(i)
-
-    routes_departing_at,    # D(t)
-    route_pre_departure,    # t_pre(r)
+    routes_departing_at,
+    route_pre_departure,
 
     aux_load_t,             # P_aux(t)
 
@@ -146,13 +143,13 @@ def optimiser(
     # Decision Variables
     # ============================================================
 
-    N_EV = m.addVars(years, vtype=GRB.INTEGER, lb=0, name="N_EV")
-    N_D = m.addVars(years, vtype=GRB.INTEGER, lb=0, name="N_D")
+    N_EV = m.addVar(vtype=GRB.INTEGER, lb=0, name="N_EV")
+    N_D = m.addVar(vtype=GRB.INTEGER, lb=0, name="N_D")
     N_SB = m.addVar(vtype=GRB.INTEGER, lb=sb_cap_min, ub=len(batteries), name="N_SB")   #Change
     N_CS = m.addVar(vtype=GRB.INTEGER, lb=charger_min, ub=len(chargers), name="N_CS")   #Change
 
-    z = m.addVars(trucks, years, vtype=GRB.BINARY, name="z")
-    k = m.addVars(trucks, years, vtype=GRB.BINARY, name="k")
+    z = m.addVars(trucks, vtype=GRB.BINARY, name="z")
+    k = m.addVars(trucks, vtype=GRB.BINARY, name="k")
 
     # Matrix-form variables (SB/charging/SOC/E1 blocks below use these)
     w       = m.addMVar(NB,       vtype=GRB.BINARY,    name="w")
@@ -181,31 +178,23 @@ def optimiser(
     # 3. Fleet Conversion Constraints
     # ============================================================
 
-    # Previously converted trucks, must remain converted
-    for i in trucks:
-        if truck_base_electric[i] == 1:
-            m.addConstr(z[i, years[0]] == 1, name=f"F0_BaseElectric[{i}]")
 
     # F1. Number of Electric Trucks
-    for y in years: m.addConstr(N_EV[y] == gp.quicksum(z[i, y] for i in trucks_in_year[y]), name=f"F1_NumberElectricTrucks[{y}]")
+    m.addConstr(N_EV == gp.quicksum(z[i] for i in trucks), name="F1_NumberElectricTrucks")
 
     # F2. Fleet-Size Conservation
-    for y in years: m.addConstr(N_D[y] + N_EV[y] == fleet_size[y], name=f"F2_FleetSizeConservation[{y}]")
+    m.addConstr(N_D + N_EV == fleet_size, name="F2_FleetSizeConservation")
 
+    # Previously converted trucks, must remain converted
     # F3. Irreversible Conversion
     for i in trucks:
-        for y_idx in range(1, len(years)):
-            y, y_prev = years[y_idx], years[y_idx - 1]
-            if i in trucks_in_year[y] and i in trucks_in_year[y_prev]: m.addConstr(z[i, y] >= z[i, y_prev], name=f"F3_IrreversibleConversion[{i},{y}]")
-
+        if truck_base_electric[i] == 1:
+            m.addConstr(z[i] == 1, name=f"F0_BaseElectric[{i}]")
+            
     # F4. Conversion Event Indicator
     for i in trucks:
-        first_year = truck_first_year[i]
-        m.addConstr(k[i, first_year] == z[i, first_year] - truck_base_electric[i], name=f"F4_InitialConversion[{i},{first_year}]")
-        for y_idx in range(1, len(years)):
-            y, y_prev = years[y_idx], years[y_idx - 1]
-            if y != first_year and i in trucks_in_year[y] and i in trucks_in_year[y_prev]: m.addConstr(k[i, y] == z[i, y] - z[i, y_prev], name=f"F4_ConversionEvent[{i},{y}]")
-
+        m.addConstr(k[i] == z[i] - truck_base_electric[i],name=f"F3_NewConversion[{i}]")
+    
     # ============================================================
     # 5. Swappable Battery Inventory and Route Assignment (matrix)
     # ============================================================
@@ -221,7 +210,7 @@ def optimiser(
     m.addConstr(w[:-1] >= w[1:], name="SB1A_BatterySymmetry")
 
     # SB2. One Battery per Electric Route
-    z_r = gp.MVar.fromlist([z[route_truck[r], route_year[r]] for r in routes])   # (NR,)
+    z_r = gp.MVar.fromlist([z[route_truck[r]] for r in routes])
     m.addConstr(a.sum(axis=1) == z_r, name="SB2_OneBatteryPerElectricRoute")
 
     # SB3. Only Purchased Batteries May Be Assigned
@@ -435,7 +424,7 @@ def optimiser(
     # route_diesel_used[r] = litres consumed per route
     # diesel_price_t[y] = AUD/L
     an_op_diesel = gp.quicksum(
-        route_diesel_used[r]* diesel_price_t[route_year[r]]* (1 - z[route_truck[r], route_year[r]]) for r in routes)
+        route_diesel_used[r]* diesel_price* (1 - z[route_truck[r]]) for r in routes)
 
     # Total annual operating cost
     an_op_network = an_op_network_demand + network_energy_cost + network_access_cost
@@ -463,7 +452,7 @@ def optimiser(
     an_capex_PV = (crf * pv_capex_per_kw * E_PV_cap)
 
     # Truck retrofits
-    an_capex_retrofit = crf * retrofit_cost * (gp.quicksum(k[i, y] for i in trucks for y in years)+ sum(truck_base_electric.values())
+    an_capex_retrofit = crf * retrofit_cost * (gp.quicksum(k[i] for i in trucks)+ sum(truck_base_electric.values())
 )
 
     # Total annualised CAPEX
@@ -488,8 +477,8 @@ def optimiser(
 
     an_rep_retrofit_per_truck = replacement_annualisation(retrofit_cost, project_lifetime, discount_rate, retrofit_lifetime)
     an_rep_diesel_per_truck = replacement_annualisation(diesel_capex, project_lifetime, discount_rate, diesel_lifetime)
-    an_rep_retrofit = gp.quicksum(an_rep_retrofit_per_truck * N_EV[y] for y in years)
-    an_rep_diesel = gp.quicksum(an_rep_diesel_per_truck * N_D[y] for y in years)
+    an_rep_retrofit = an_rep_retrofit_per_truck * N_EV
+    an_rep_diesel = an_rep_diesel_per_truck * N_D
 
 
     # Total annualised replacement costs
@@ -513,10 +502,10 @@ def optimiser(
     an_om_PV = (pv_capex_per_kw * E_PV_cap * pv_om)
 
     # Electric truck retrofit O&M
-    an_om_retrofit = (retrofit_cost * retrofit_om * gp.quicksum(z[i, y] for i in trucks for y in years))
+    an_om_retrofit = (retrofit_cost * retrofit_om * N_EV)
 
     # Diesel O&M
-    an_om_DIESEL = gp.quicksum(diesel_capex * diesel_om * (1 - z[i, y]) for y in years for i in trucks_in_year[y])
+    an_om_DIESEL = diesel_capex * diesel_om * N_D
 
     # Total annual O&M cost
     an_om = (an_om_SB + an_om_CS + an_om_BESS + an_om_PV + an_om_retrofit + an_om_DIESEL)
@@ -528,32 +517,6 @@ def optimiser(
 
     obj1 = (an_op + an_capex + an_rep + an_om)
     m.setObjective(obj1, GRB.MINIMIZE)
-
-
-    # ============================================================
-    # Warm Start - diesel baseline
-    # ============================================================
-    # A cheap known-feasible point: no trucks converted, no batteries,
-    # chargers, PV or BESS purchased. Note (from the last log): this
-    # produced the exact same objective the solver's own heuristic
-    # found unaided, so it's not currently doing useful work - left in
-    # as harmless scaffolding for a more informative warm start later.
-    for i in trucks:
-        for y in years:
-            z[i, y].Start = 0
-            k[i, y].Start = 0
-    w.Start = np.zeros(NB)
-    a.Start = np.zeros((NR, NB))
-    x_SB_ch.Start = np.zeros((NT, NB))
-    E_SB.Start = np.zeros((NT, NB))
-    P_SB_ch.Start = np.zeros((NT, NB))
-    N_SB.Start = 0
-    N_CS.Start = 0
-    Q_BESS.Start = 0
-    P_BESS_ch_inst.Start = 0
-    P_BESS_dis_inst.Start = 0
-    E_PV_cap.Start = 0
-
 
     # ============================================================
     # Optimise
@@ -583,61 +546,98 @@ def optimiser(
     # still found a feasible solution.
     if m.status == GRB.OPTIMAL or (m.status == GRB.TIME_LIMIT and m.SolCount > 0):
 
+        time_series_data = {
+            "Time": list(times),
+            "Grid_Import_kW": [P_G_imp[t].X for t in times],
+            "Grid_Export_kW": [P_G_exp[t].X for t in times],
+            "Spot_Price": [spot_price_t[t] for t in times],
+            "Grid_Price": [grid_price_t[t] for t in times],
+            "PV_Generated_kW": [P_PV_generated[t].X for t in times],
+            "BESS_Energy_kWh": [E_BESS[t].X for t in times],
+            "BESS_Charge_kW": [P_BESS_ch[t].X for t in times],
+            "BESS_Discharge_kW": [P_BESS_dis[t].X for t in times],
+        }
+        
+        df_results_year = pd.DataFrame(time_series_data)
+        
+        # Technology selection
+        df_results_year["PV_Capacity_kW"] = E_PV_cap.X
+        df_results_year["BESS_Capacity_kWh"] = Q_BESS.X
+        df_results_year["BESS_Charge_Capacity_kW"] = P_BESS_ch_inst.X
+        df_results_year["BESS_Discharge_Capacity_kW"] = P_BESS_dis_inst.X
+        df_results_year["Grid_Capacity_kW"] = S_G.X
+        df_results_year["Chargers_Existing"] = int(charger_min)
+        df_results_year["Chargers_New"] = int(round(N_CS.X - charger_min))
+        df_results_year["Chargers_Total"] = int(round(N_CS.X))
+        df_results_year["Batteries_Existing"] = int(sb_cap_min)
+        df_results_year["Batteries_New"] = int(round(N_SB.X - sb_cap_min))
+        df_results_year["Batteries_Total"] = int(round(N_SB.X))
+        df_results_year["Number_of_Retrofits"] = round(N_EV.X)
+        
+        # BESS SOC
+        if Q_BESS.X > 0:
+            df_results_year["BESS_SOC_Percent"] = [100 * E_BESS[t].X / Q_BESS.X for t in times]
+        else:
+            df_results_year["BESS_SOC_Percent"] = 0
+        
+        # Route operation
+        df_results_year["Active_Routes"] = [list(active_routes_at[t]) for t in times]
+        df_results_year["Route_Energy_kWh"] = [[route_energy[r] for r in active_routes_at[t]] for t in times]
+        df_results_year["Route_Batteries"] = [[next((b for b in batteries if a[route_idx[r], battery_idx[b]].X > 0.5), -1) for r in active_routes_at[t]] for t in times]
+        
+        # Swappable batteries
+        for b in batteries:
+            b_idx = battery_idx[b]
+            df_results_year[f"SB_{b}_Energy_kWh"] = [E_SB[time_idx[t], b_idx].X for t in times]
+            df_results_year[f"SB_{b}_SOC_Percent"] = [100 * E_SB[time_idx[t], b_idx].X / sb_cap for t in times]
+            df_results_year[f"SB_{b}_Charge_kW"] = [P_SB_ch[time_idx[t], b_idx].X for t in times]
+            df_results_year[f"SB_{b}_Charging"] = [x_SB_ch[time_idx[t], b_idx].X for t in times]
+        
+        # Charger operation
+        df_results_year["Chargers_In_Use"] = [sum(x_SB_ch[time_idx[t], battery_idx[b]].X for b in batteries) for t in times]
+        df_results_year["Total_SB_Charging_kW"] = [sum(P_SB_ch[time_idx[t], battery_idx[b]].X for b in batteries) for t in times]
+        
+        # Annual energy totals
+        df_results_year["Annual_Grid_Import_kWh"] = sum(P_G_imp[t].X * dt for t in times)
+        df_results_year["Annual_Grid_Export_kWh"] = sum(P_G_exp[t].X * dt for t in times)
+        df_results_year["Annual_PV_Generation_kWh"] = sum(P_PV_generated[t].X * dt for t in times)
+        df_results_year["Annual_BESS_Charge_kWh"] = sum(P_BESS_ch[t].X * dt for t in times)
+        df_results_year["Annual_BESS_Discharge_kWh"] = sum(P_BESS_dis[t].X * dt for t in times)
+        df_results_year["Annual_SB_Charge_kWh"] = float(P_SB_ch.X.sum() * dt)
+        
+        # Costs
+        df_results_year["Total_Cost"] = obj1.getValue()
+        df_results_year["Operation_Cost"] = an_op.getValue()
+        df_results_year["Annualised_CAPEX"] = an_capex.getValue()
+        df_results_year["Replacement_Cost"] = an_rep.getValue()
+        df_results_year["OM_Cost"] = an_om.getValue()
+        
+        # Solver information
+        df_results_year["MIP_Gap_Percent"] = m.MIPGap * 100
+        df_results_year["Status"] = "Optimal" if m.status == GRB.OPTIMAL else "Time limit reached (feasible)"
+        df_results_year["Solve_Time_Seconds"] = solve_time_seconds
+        
+        # Truck conversion status
+        for i in trucks:
+            df_results_year[f"Truck_{i}_Electric"] = int(round(z[i].X))
+        
+        # Store all yearly results
         results_year = {
-
-            # Objective
             "total_cost": obj1.getValue(),
-
-            # Technology selection
-            "number_of_batteries": N_SB.X,
-            "number_of_chargers": N_CS.X,
-            "number_of_retrofits": round(N_EV[years[-1]].X),
-            "truck_base_electric": {i: int(round(z[i, years[-1]].X)) for i in trucks},
+            "chargers_total": int(round(N_CS.X)),
+            "batteries_total": int(round(N_SB.X)),
+            "number_of_retrofits": round(N_EV.X),
+            "truck_base_electric": {i: int(round(z[i].X)) for i in trucks},
             "BESS_capacity_kWh": Q_BESS.X,
             "BESS_charge_capacity_kW": P_BESS_ch_inst.X,
             "BESS_discharge_capacity_kW": P_BESS_dis_inst.X,
             "PV_capacity_kW": E_PV_cap.X,
             "grid_capacity_kW": S_G.X,
-
-            # Energy totals
-            "grid_import_kWh": sum(P_G_imp[t].X * dt for t in times),
-            "grid_export_kWh": sum(P_G_exp[t].X * dt for t in times),
-            "PV_generation_kWh": sum(P_PV_generated[t].X * dt for t in times),
-            "BESS_charge_kWh": sum(P_BESS_ch[t].X * dt for t in times),
-            "BESS_discharge_kWh": sum(P_BESS_dis[t].X * dt for t in times),
-            # P_SB_ch is an MVar (NT,NB) - sum the full solution array
-            # rather than looping dict-style keys.
-            "SB_charge_kWh": float(P_SB_ch.X.sum() * dt),
-
-            # Cost breakdown
-            "operation_cost": an_op.getValue(),
-            "annualised_capex": an_capex.getValue(),
-            "replacement_cost": an_rep.getValue(),
-            "OM_cost": an_om.getValue(),
-
-            # Solver
-            "MIP_gap_percent": m.MIPGap * 100,
-            "status": "Optimal" if m.status == GRB.OPTIMAL else "Time limit reached (feasible)",
-            "solve_time_seconds": solve_time_seconds,
+            "time_series": df_results_year,
         }
 
-        # Convert to dataframe
-        df_results_year = pd.DataFrame([results_year])
-
-        # Print
-        print("\n========================================")
-        print("OPTIMAL SOLUTION YEAR 2" if m.status == GRB.OPTIMAL else "FEASIBLE SOLUTION (TIME LIMIT REACHED)")
-        print("========================================")
-
-        for key, value in results_year.items():
-            if isinstance(value, (int, float)):
-                print(f"{key}: {value:,.2f}")
-            else:
-                print(f"{key}: {value}")
-
-        print("========================================\n")
-
-        return results_year, df_results_year
+        
+        return results_year
 
     else:
         # No feasible solution found (e.g. infeasible model, or time

@@ -54,7 +54,7 @@ if PROCESS_DATA:
     YEAR = int(inputs["year"]) 
     
     # Yearly Optimiser Time Set
-    DURATION_DAYS = 365
+    DURATION_DAYS = PROJECT_DURATION_DAYS
     NUMBER_OF_TIMESTEPS = int(DURATION_DAYS * 24 / DT)
     TIMES = list(range(NUMBER_OF_TIMESTEPS))
     FIRST_T = TIMES[0]
@@ -345,6 +345,216 @@ if RUN_BAU:
     
     bau_df_results.to_csv(os.path.join(OUTPUT_DIR,"bau_results.csv"), index=False)
 
+# ============================================================
+# Local Sensitivity Analysis
+# ============================================================
+
+RUN_LSA = True
+
+LSA_PARAMS = {
+    "diesel_price": "Diesel price",
+    "battery_cost": "Swappable battery CAPEX",
+    "charger_cost": "Charger CAPEX",
+    "pv_capex_per_kw": "PV CAPEX",
+    "bess_capex_per_kwh": "BESS CAPEX",
+    "retrofit_cost": "Retrofit CAPEX",
+    "bess_charge_efficiency": "BESS charge efficiency",
+    "sb_charge_efficiency": "Battery charge efficiency",
+    "sb_om": "Battery O&M",
+    "discount_rate": "Discount rate",
+}
+
+
+if RUN_LSA:
+
+    print("\n============================================")
+    print("LOCAL SENSITIVITY ANALYSIS")
+    print("============================================")
+
+    lsa_results = []
+
+    # --------------------------------------------------------
+    # 1. Run the BASE optimisation
+    # --------------------------------------------------------
+
+    print("\nRunning BASE optimisation...")
+
+    base_inputs = optimiser_inputs.copy()
+
+    base_result = opt.optimiser(**base_inputs)
+
+    if base_result is None:
+        raise RuntimeError("Base optimisation is infeasible.")
+
+    base_cost = base_result["total_cost"]
+
+    print(f"Base total cost: ${base_cost:,.2f}")
+
+    # Store base result
+    lsa_results.append({
+        "Parameter": "Base",
+        "Parameter_Name": "Base case",
+        "Change": 0.0,
+        "Multiplier": 1.0,
+        "Input_Value": np.nan,
+        "Total_Cost": base_cost,
+        "Cost_Change": 0.0,
+        "Cost_Change_Percent": 0.0,
+        "Status": "Feasible",
+    })
+
+
+    # --------------------------------------------------------
+    # 2. Change each parameter by +/- 10%
+    # --------------------------------------------------------
+
+    for parameter, parameter_name in LSA_PARAMS.items():
+
+        base_value = optimiser_inputs[parameter]
+
+        print("\n--------------------------------------------")
+        print(f"{parameter_name}")
+        print(f"Base value: {base_value}")
+        print("--------------------------------------------")
+
+
+        # ====================================================
+        # +10%
+        # ====================================================
+
+        increased_inputs = optimiser_inputs.copy()
+
+        increased_value = base_value * 1.10
+
+        increased_inputs[parameter] = increased_value
+
+        print(f"+10% value: {increased_value}")
+
+        increased_result = opt.optimiser(**increased_inputs)
+
+        if increased_result is not None:
+
+            increased_cost = increased_result["total_cost"]
+
+            cost_change = increased_cost - base_cost
+            cost_change_percent = (
+                cost_change / base_cost * 100
+            )
+
+            print(f"Result: ${increased_cost:,.2f}")
+
+            lsa_results.append({
+                "Parameter": parameter,
+                "Parameter_Name": parameter_name,
+                "Change": 0.10,
+                "Multiplier": 1.10,
+                "Input_Value": increased_value,
+                "Total_Cost": increased_cost,
+                "Cost_Change": cost_change,
+                "Cost_Change_Percent": cost_change_percent,
+                "Status": "Feasible",
+            })
+
+        else:
+
+            print("Result: INFEASIBLE")
+
+            lsa_results.append({
+                "Parameter": parameter,
+                "Parameter_Name": parameter_name,
+                "Change": 0.10,
+                "Multiplier": 1.10,
+                "Input_Value": increased_value,
+                "Total_Cost": np.nan,
+                "Cost_Change": np.nan,
+                "Cost_Change_Percent": np.nan,
+                "Status": "Infeasible",
+            })
+
+
+        # ====================================================
+        # -10%
+        # ====================================================
+
+        decreased_inputs = optimiser_inputs.copy()
+
+        decreased_value = base_value * 0.90
+
+        decreased_inputs[parameter] = decreased_value
+
+        print(f"-10% value: {decreased_value}")
+
+        decreased_result = opt.optimiser(**decreased_inputs)
+
+        if decreased_result is not None:
+
+            decreased_cost = decreased_result["total_cost"]
+
+            cost_change = decreased_cost - base_cost
+            cost_change_percent = (
+                cost_change / base_cost * 100
+            )
+
+            print(f"Result: ${decreased_cost:,.2f}")
+
+            lsa_results.append({
+                "Parameter": parameter,
+                "Parameter_Name": parameter_name,
+                "Change": -0.10,
+                "Multiplier": 0.90,
+                "Input_Value": decreased_value,
+                "Total_Cost": decreased_cost,
+                "Cost_Change": cost_change,
+                "Cost_Change_Percent": cost_change_percent,
+                "Status": "Feasible",
+            })
+
+        else:
+
+            print("Result: INFEASIBLE")
+
+            lsa_results.append({
+                "Parameter": parameter,
+                "Parameter_Name": parameter_name,
+                "Change": -0.10,
+                "Multiplier": 0.90,
+                "Input_Value": decreased_value,
+                "Total_Cost": np.nan,
+                "Cost_Change": np.nan,
+                "Cost_Change_Percent": np.nan,
+                "Status": "Infeasible",
+            })
+
+
+    # --------------------------------------------------------
+    # 3. Convert results to DataFrame
+    # --------------------------------------------------------
+
+    lsa_df = pd.DataFrame(lsa_results)
+
+
+    # --------------------------------------------------------
+    # 4. Save to CSV
+    # --------------------------------------------------------
+
+    lsa_file = os.path.join(
+        OUTPUT_DIR,
+        "local_sensitivity_analysis.csv"
+    )
+
+    lsa_df.to_csv(
+        lsa_file,
+        index=False
+    )
+
+    print("\n============================================")
+    print("LOCAL SENSITIVITY ANALYSIS COMPLETE")
+    print("============================================")
+    print(f"Results saved to:")
+    print(lsa_file)
+
+    print("\nResults:")
+    print(lsa_df)
 
 # ============================================================
 # Run Optimisation Model

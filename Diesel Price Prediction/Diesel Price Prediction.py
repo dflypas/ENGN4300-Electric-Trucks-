@@ -30,9 +30,9 @@ df = pd.read_csv(target_csv)
 #Find line of best fit
 m, b = np.polyfit(df['Year'], df['Price'], 1)
 
-#Extrapolate future price data based on line of best fit
+#Extrapolate future price data based on line of best fit. Output in dollars
 duration = 10
-price = [[x,m*x+b] for x in range(duration)]
+price = [[x,(m*x+b)/100] for x in range(duration)]
 
 #Convert extrapolated price form list to dataframe and export to .csv file
 prediction_df = pd.DataFrame(price, columns=['Year', 'Price'])

@@ -58,7 +58,7 @@ def run_pipeline(overrides=None, time_limit=None, mip_gap=None):
         YEAR = int(inputs["year"]) 
         
         # Yearly Optimiser Time Set
-        DURATION_DAYS = PROJECT_DURATION_DAYS
+        DURATION_DAYS = 365
         NUMBER_OF_TIMESTEPS = int(DURATION_DAYS * 24 / DT)
         TIMES = list(range(NUMBER_OF_TIMESTEPS))
         FIRST_T = TIMES[0]
@@ -194,7 +194,7 @@ def run_pipeline(overrides=None, time_limit=None, mip_gap=None):
         M = len(MONTH_LIMITS)
     
         # Route Data Processing 
-        route_data_processor = rt.RouteDataProcessor(route_csv=os.path.join(INPUT_DIR, "route_schedule.csv"), duration_days=DURATION_DAYS, times=TIMES)
+        route_data_processor = rt.RouteDataProcessor(route_csv=os.path.join(INPUT_DIR, "route_schedule_2.csv"), duration_days=DURATION_DAYS, times=TIMES)
         ROUTES = route_data_processor.routes
         TRUCKS = route_data_processor.trucks
         ROUTE_TRUCK = route_data_processor.route_truck

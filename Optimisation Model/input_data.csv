@@ -1,5 +1,5 @@
 field_name,value,category,variable_type,variable_name,data_type,unit,description
-duration,100,Study_Inputs,parameter,D,int,days,Duration of study in days
+duration,3650,Study_Inputs,parameter,D,int,days,Duration of study in days
 year,2026,Location_Inputs,parameter,year,int,year,Assessment year used by the PV/weather processor
 latitude,-36.674,Location_Inputs,parameter,latitude,float,degrees,Site latitude
 longitude,149.842,Location_Inputs,parameter,longitude,float,degrees,Site longitude
@@ -54,7 +54,7 @@ PV_OM,0.01,Economic_Inputs,parameter,OM_PV,float,fraction/year,Annual PV mainten
 RETROFIT_OM,0.01,Economic_Inputs,parameter,OM_retrofit,float,fraction/year,Annual truck retrofit maintenance rate
 DIESEL_OM,0.15,Economic_Inputs,parameter,OM_diesel,float,fraction/year,Annual diesel truck maintenance rate
 discount_rate,0.05,Economic_Inputs,parameter,r_discount,float,fraction,Annual discount rate
-Wholesale Market,1,Grid_Inputs,parameter,,,,Is the location on the wholesale market (Spot price) (1) or is it a regular grid connection (0)
+Wholesale Market,0,Grid_Inputs,parameter,,,,Is the location on the wholesale market (Spot price) (1) or is it a regular grid connection (0)
 F_I_T_on_peak,0.02,Grid_Inputs,parameter,FIT_on_peak,float,$/kWh,Feed in tariff value during the day between 10am to 3pm
 F_I_T_off_peak,0.18,Grid_Inputs,parameter,FIT_off_peak,float,$/kWh,Feed in tariff value during the night between 4pm to 9pm
 F_I_T_flat,0.05,Grid_Inputs,parameter,FIT_flat,float,$/kWh,Feed in tariff value during the night between 9pm to 10am

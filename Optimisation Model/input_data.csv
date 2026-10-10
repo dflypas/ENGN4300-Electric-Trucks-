@@ -37,7 +37,7 @@ PV_efficiency,0.2,Energy_Production_Inputs,parameter,η_PV,float,fraction,PV pan
 PV_max_kw,1000,Energy_Production_Inputs,parameter,PV_max_cap,float,kW,
 C_CAPEX,50000,Economic_Inputs,parameter,C_CS,float,AUD/charger,Charger purchase and installation cost
 SB_CAPEX,350000,Economic_Inputs,parameter,C_SB,float,AUD/battery,Swappable battery purchase cost
-PV_CAPEX_per_kw,0.04,Economic_Inputs,parameter,C_PV,float,AUD/kW,PV installation capital cost
+PV_CAPEX_per_kw,400,Economic_Inputs,parameter,C_PV,float,AUD/kW,PV installation capital cost
 BESS_CAPEX_per_kwh,150,Economic_Inputs,parameter,C_BESS,float,AUD/kWh,Stationary BESS capital cost per installed kWh
 RETROFIT_CAPEX,175000,Economic_Inputs,parameter,C_retrofit,float,AUD/truck,Truck retrofit capital cost
 DIESEL_CAPEX,450000,,,,,,

@@ -16,6 +16,8 @@ import matplotlib as plt
 import pvlib
 from pvlib import pvsystem
 import datetime as dt
+import io
+from contextlib import redirect_stdout
 
 # Import Own Modules
 import energy_data_processor as ep
@@ -26,9 +28,12 @@ import optimiser as opt
 
 import time 
 
+
+
 INPUT_DIR = os.path.dirname(os.path.abspath(__file__))
 OUTPUT_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "results")
 os.makedirs(OUTPUT_DIR, exist_ok=True)
+
 
 # ============================================================
 # Process Data
@@ -58,12 +63,16 @@ def run_pipeline(overrides=None, time_limit=None, mip_gap=None):
         YEAR = int(inputs["year"]) 
         
         # Yearly Optimiser Time Set
-        DURATION_DAYS = 365
+        if PROJECT_DURATION_DAYS < 365:
+            DURATION_DAYS = PROJECT_DURATION_DAYS
+        elif PROJECT_DURATION_DAYS >= 365:
+            DURATION_DAYS = 365
         NUMBER_OF_TIMESTEPS = int(DURATION_DAYS * 24 / DT)
         TIMES = list(range(NUMBER_OF_TIMESTEPS))
         FIRST_T = TIMES[0]
         LAST_T = TIMES[-1]
-    
+
+            
         # Location
         LATITUDE = float(inputs["latitude"])
         LONGITUDE = float(inputs["longitude"])
@@ -335,7 +344,7 @@ def run_pipeline(overrides=None, time_limit=None, mip_gap=None):
     RUN_BAU = True
     
     if RUN_BAU:
-        bau_results, bau_df_results = bau.business_as_usual(
+        bau_df_results = bau.business_as_usual(
             routes=ROUTES,
             route_diesel_used=ROUTE_DIESEL_USED,
             route_year=ROUTE_YEAR,
@@ -363,27 +372,81 @@ def run_pipeline(overrides=None, time_limit=None, mip_gap=None):
     
     if RUN_OPTIMISER:
         
+
         results_year = {}
         current_inputs = optimiser_inputs.copy()
-        
+
         for i in range(N_YEARS):
-            
+
+            print("\n" + "=" * 62)
+            print(f"RUNNING OPTIMISATION FOR YEAR {YEAR}")
+            print("=" * 62)
+
             results_year[YEAR] = opt.optimiser(**current_inputs)
-    
-            # Stop if no feasible solution
-            if results_year[YEAR] is None:
-                print(f"No feasible solution for {YEAR}.")
+
+            # Stop if no valid solution
+            if (
+                results_year[YEAR] is None
+                or not isinstance(results_year[YEAR], dict)
+            ):
+                print(f"No feasible solution for Year {YEAR}.")
                 break
+
+            # Print readable optimisation summary
+            # Create output directory
+            output_dir = os.path.join(os.path.dirname(__file__), "outputs")
+            os.makedirs(output_dir, exist_ok=True)
+
+            # Capture the printed summary
+            buffer = io.StringIO()
+
+            with redirect_stdout(buffer):
+                opt.print_optimisation_results(
+                        results_year[YEAR],
+                        year=YEAR,
+                        fleet_size=current_inputs["fleet_size"],
+                    )
+
+            summary_text = buffer.getvalue()
+
+            # Display summary in terminal
+            print(summary_text)
+
+            # Save summary to file
+            output_file = os.path.join(
+                output_dir,
+                f"optimisation_summary_{YEAR}.txt"
+            )
+
+            with open(output_file, "w", encoding="utf-8") as f:
+                f.write(summary_text)
+
+            print(f"Results saved to: {output_file}")
             
+
             # Save time-series results
-            results_year[YEAR]["time_series"].to_csv(os.path.join(OUTPUT_DIR, f"results_year_timeseries{YEAR}.csv"), index=False)
-            
+            results_year[YEAR]["time_series"].to_csv(
+                os.path.join(
+                    OUTPUT_DIR,
+                    f"results_year_timeseries{YEAR}.csv"
+                ),
+                index=False
+            )
+
             # Save summary results without time_series
-            summary_results = {key: value for key, value in results_year[YEAR].items() if key != "time_series"}
-            pd.DataFrame([summary_results]).to_csv(os.path.join(OUTPUT_DIR, f"results_year{YEAR}.csv"), index=False)
-            
+            summary_results = {
+                key: value
+                for key, value in results_year[YEAR].items()
+                if key != "time_series"
+            }
+
+            pd.DataFrame([summary_results]).to_csv(
+                os.path.join(OUTPUT_DIR, f"results_year{YEAR}.csv"),
+                index=False
+            )
+
             optimal = results_year[YEAR]
-            
+
             current_inputs["sb_cap_min"] = int(optimal["batteries_total"])
             current_inputs["charger_min"] = int(optimal["chargers_total"])
             current_inputs["bess_min_cap"] = float(optimal["BESS_capacity_kWh"])
@@ -392,13 +455,9 @@ def run_pipeline(overrides=None, time_limit=None, mip_gap=None):
             current_inputs["existing_grid_capacity"] = float(optimal["grid_capacity_kW"])
             current_inputs["diesel_price"] = float(DIESEL_PRICE_T[i])
             current_inputs["fleet_size"] = int(FLEET_SIZE[i])
-            
+
             YEAR += 1
-        
-    end_time = time.time()
-    elapsed_time = end_time - start_time
-    print(f"Total time: {elapsed_time:.6f} seconds")
-    
+
     # ============================================================
     # Local Sensitivity Analysis
     # ============================================================

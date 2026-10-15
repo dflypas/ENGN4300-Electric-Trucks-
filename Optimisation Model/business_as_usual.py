@@ -38,24 +38,42 @@ def business_as_usual(
     discount_rate,
     project_lifetime
 ):
+    base_year = 0
     
-    number_of_diesel_trucks = {y: len(trucks_in_year[y]) for y in years}
-
     diesel_used = sum(route_diesel_used[r] for r in routes)
     
-    diesel_fuel_cost = sum(route_diesel_used[r] * diesel_price_t[route_year[r]] for r in routes)
-    
-    diesel_om_cost = sum(diesel_capex * diesel_om for y in years for i in trucks_in_year[y])
-    
-    
     crf = (discount_rate * (1 + discount_rate) ** project_lifetime / ((1 + discount_rate) ** project_lifetime - 1))
-
-    diesel_capital_cost = (crf* diesel_capex* len(trucks))
     
     annualised_diesel_replacement = replacement_annualisation(diesel_capex, project_lifetime, discount_rate, diesel_lifetime)
-    diesel_replacement_cost = sum(annualised_diesel_replacement * number_of_diesel_trucks[y] for y in years)
-    
-    total_cost = (diesel_fuel_cost + diesel_capital_cost + diesel_replacement_cost + diesel_om_cost)
+
+    rows = []
+    for y in years:
+        fuel = diesel_used * diesel_price_t[y]
+        capex = crf * diesel_capex * len(trucks)
+        rep = annualised_diesel_replacement * len(trucks)
+        om = diesel_capex * diesel_om * len(trucks)
+        total = fuel + capex + rep + om
+
+        rows.append({
+            "year_index": y,
+            "year": base_year + y,
+            "total_cost": total,
+            "operation_cost": fuel,
+            "annualised_capex": capex,
+            "replacement_cost": rep,
+            "OM_cost": om,
+            "diesel_used_L": diesel_used,
+            "diesel_price": diesel_price_t[y],
+            "number_of_diesel_trucks": len(trucks),
+            "number_of_electric_trucks": 0,
+        })
+
+    df = pd.DataFrame(rows)
+    df["discount_factor"] = 1 / (1 + discount_rate) ** df["year_index"]
+    df["discounted_cost"] = df["total_cost"] * df["discount_factor"]
+    df["cumulative_cost"] = df["total_cost"].cumsum()
+    return df
+
 
 
     # ============================================================

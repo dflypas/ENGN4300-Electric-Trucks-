@@ -1,5 +1,5 @@
 field_name,value,category,variable_type,variable_name,data_type,unit,description
-duration,3650,Study_Inputs,parameter,D,int,days,Duration of study in days
+duration,10,Study_Inputs,parameter,D,int,days,Duration of study in days
 year,2026,Location_Inputs,parameter,year,int,year,Assessment year used by the PV/weather processor
 latitude,-36.674,Location_Inputs,parameter,latitude,float,degrees,Site latitude
 longitude,149.842,Location_Inputs,parameter,longitude,float,degrees,Site longitude

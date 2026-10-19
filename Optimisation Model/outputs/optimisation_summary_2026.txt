@@ -5,11 +5,11 @@ OPTIMISATION RESULTS — YEAR 2026
 
 1. EXECUTIVE SUMMARY
 --------------------------------------------------------------
-Annual total cost:       $655,888.24
+Annual total cost:       $762,485.99
 Electric trucks:         8
 New truck retrofits:     8
 Solver status:           Optimal
-Solve time:              5.61 seconds
+Solve time:              51.86 seconds
 Diesel trucks remaining: 0
 Fleet electrification:   100.0%
 
@@ -21,35 +21,77 @@ BESS charge power:       2,000.0 kW
 BESS discharge power:    2,000.0 kW
 Grid connection:         3,000.0 kW
 Swappable batteries:     6
-Chargers:                2
+Chargers:                6
 Diesel fuel cost:        $0.00
 
 3. ANNUAL COST BREAKDOWN
 --------------------------------------------------------------
 Cost category                       Annual cost       Share
 --------------------------------------------------------------
-Operating costs                       $9,034.68        1.4%
-Annualised CAPEX                    $466,216.47       71.1%
-Replacement costs                   $202,940.45       30.9%
-Residual value                      $-58,303.35       -8.9%
-Fixed O&M                            $36,000.00        5.5%
+Operating costs                      $24,485.99        3.2%
+Annualised CAPEX                  $3,990,000.00      523.3%
+Replacement costs                         $0.00        0.0%
+Residual value                   $-3,290,000.00     -431.5%
+Fixed O&M                            $38,000.00        5.0%
 --------------------------------------------------------------
-TOTAL                               $655,888.24      100.0%
+TOTAL ANNUAL                        $762,485.99      100.0%
+
+3b. TOTAL EXPENDITURE THIS RUN
+--------------------------------------------------------------
+Item                                     Amount       Share
+--------------------------------------------------------------
+Upfront CAPEX                     $3,800,000.00       98.4%
+Operating costs                      $24,485.99        0.6%
+Fixed O&M                            $38,000.00        1.0%
+--------------------------------------------------------------
+TOTAL SPEND                       $3,862,485.99      100.0%
 
 4. ANNUAL ENERGY PERFORMANCE
 --------------------------------------------------------------
-Grid electricity imported              33.42 MWh
+Grid electricity imported             100.26 MWh
 Electricity exported                    0.00 MWh
 PV electricity generated                0.00 MWh
 BESS energy charged                     0.00 MWh
 BESS energy discharged                  0.00 MWh
-Swappable battery charging             33.42 MWh
+Swappable battery charging            100.26 MWh
 
 5. GRID PERFORMANCE
 --------------------------------------------------------------
-Peak grid import:        278.6 kW
+Peak grid import:        240.0 kW
 Peak grid export:        0.0 kW
 
 ==============================================================
 End of optimisation summary
 ==============================================================
+
+==============================================================
+NPV OF LIFETIME COST (1 years, 5.0% discount rate)
+==============================================================
+Upfront CAPEX                        $3,800,000      385.2%
+Operating costs (PV)                   $283,727       28.8%
+Fixed O&M (PV)                          $36,190        3.7%
+Replacements (PV)                            $0        0.0%
+Residual value (PV)                 $-3,133,333     -317.6%
+--------------------------------------------------------------
+NPV (total cost)                       $986,584
+
+==============================================================
+BUSINESS AS USUAL (all diesel) - NPV (1 years)
+==============================================================
+Upfront CAPEX                        $3,600,000
+Operating costs (PV)                   $409,319
+Fixed O&M (PV)                         $514,286
+Replacements (PV)                            $0
+Residual value (PV)                 $-3,200,000
+--------------------------------------------------------------
+BAU NPV (total cost)                 $1,323,605
+
+==============================================================
+COMPARISON
+==============================================================
+Optimiser NPV                          $986,584
+BAU NPV                              $1,323,605
+NPV saving                             $337,021  (positive = electrification cheaper)
+
+BAU upfront CAPEX                    $3,600,000
+BAU total spend (run)                $4,175,325

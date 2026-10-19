@@ -34,6 +34,37 @@ INPUT_DIR = os.path.dirname(os.path.abspath(__file__))
 OUTPUT_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "results")
 os.makedirs(OUTPUT_DIR, exist_ok=True)
 
+def format_npv_report(H, r, npv_items, npv_total, bau_npv_items, bau_npv_total, bau_row):
+    lines = []
+    lines.append("=" * 62)
+    lines.append(f"NPV OF LIFETIME COST ({H} years, {r:.1%} discount rate)")
+    lines.append("=" * 62)
+    for label, value in npv_items.items():
+        lines.append(f"{label:<28}{'$' + format(value, ',.0f'):>19}{100 * value / npv_total:>11.1f}%")
+    lines.append("-" * 62)
+    lines.append(f"{'NPV (total cost)':<28}{'$' + format(npv_total, ',.0f'):>19}")
+
+    lines.append("")
+    lines.append("=" * 62)
+    lines.append(f"BUSINESS AS USUAL (all diesel) - NPV ({H} years)")
+    lines.append("=" * 62)
+    for label, value in bau_npv_items.items():
+        lines.append(f"{label:<28}{'$' + format(value, ',.0f'):>19}")
+    lines.append("-" * 62)
+    lines.append(f"{'BAU NPV (total cost)':<28}{'$' + format(bau_npv_total, ',.0f'):>19}")
+
+    lines.append("")
+    lines.append("=" * 62)
+    lines.append("COMPARISON")
+    lines.append("=" * 62)
+    lines.append(f"{'Optimiser NPV':<28}{'$' + format(npv_total, ',.0f'):>19}")
+    lines.append(f"{'BAU NPV':<28}{'$' + format(bau_npv_total, ',.0f'):>19}")
+    lines.append(f"{'NPV saving':<28}{'$' + format(bau_npv_total - npv_total, ',.0f'):>19}"
+                 "  (positive = electrification cheaper)")
+    lines.append("")
+    lines.append(f"{'BAU upfront CAPEX':<28}{'$' + format(bau_row['upfront_capex'], ',.0f'):>19}")
+    lines.append(f"{'BAU total spend (run)':<28}{'$' + format(bau_row['total_spend'], ',.0f'):>19}")
+    return "\n".join(lines) + "\n"
 
 # ============================================================
 # Process Data
@@ -434,11 +465,10 @@ def run_pipeline(overrides=None, time_limit=None, mip_gap=None):
             )
 
             # Save summary results without time_series
-            summary_results = {
-                key: value
-                for key, value in results_year[YEAR].items()
-                if key != "time_series"
-            }
+            summary_results = {k: v for k, v in results_year[YEAR].items()
+                            if k not in ("time_series", "spend_items", "upfront_capex_items")}
+            summary_results.update({f"spend_{k.replace(' ', '_')}": v
+                                    for k, v in results_year[YEAR]["spend_items"].items()})
 
             pd.DataFrame([summary_results]).to_csv(
                 os.path.join(OUTPUT_DIR, f"results_year{YEAR}.csv"),
@@ -457,6 +487,80 @@ def run_pipeline(overrides=None, time_limit=None, mip_gap=None):
             current_inputs["fleet_size"] = int(FLEET_SIZE[i])
 
             YEAR += 1
+
+            # ============================================================
+            # NPV of lifetime cost (reporting only)
+            # ============================================================
+            H = N_YEARS                                  
+            r = DISCOUNT_RATE
+            opex_scale = 365 / DURATION_DAYS        
+
+            final = results_year[max(results_year)]
+            row = final["time_series"].iloc[0]
+
+            annuity = (1 - (1 + r) ** -H) / r if r > 0 else H
+            crf_H = 1 / annuity
+
+            annual_opex = row["Operation_Cost"] * opex_scale
+            annual_om = row["OM_Cost"]               # already an annual figure
+
+            n_retrofit = sum(final["truck_base_electric"].values())
+            n_diesel = FLEET_SIZE[0] - n_retrofit
+
+            assets = [
+                ("Swappable batteries", SB_CAPEX,           SB_L,       final["batteries_total"]),
+                ("Chargers",            C_CAPEX,            C_L,        final["chargers_total"]),
+                ("Stationary BESS",     BESS_CAPEX_PER_KWH, BESS_L,     final["BESS_capacity_kWh"]),
+                ("PV",                  PV_CAPEX_PER_KW,    PV_L,       final["PV_capacity_kW"]),
+                ("Truck retrofits",     RETROFIT_CAPEX,     RETROFIT_L, n_retrofit),
+                ("Diesel trucks",       DIESEL_CAPEX,       DIESEL_L,   n_diesel),
+            ]
+
+            pv_rep = pv_res = 0.0
+            for name, cost, life, qty in assets:
+                rep, res_ = opt.replacement_annualisation(cost, H, r, life)
+                pv_rep += rep / crf_H * qty          # back to present value
+                pv_res += res_ / crf_H * qty
+
+            npv_items = {
+                "Upfront CAPEX":          final["upfront_capex"],
+                "Operating costs (PV)":   annual_opex * annuity,
+                "Fixed O&M (PV)":         annual_om * annuity,
+                "Replacements (PV)":      pv_rep,
+                "Residual value (PV)":    -pv_res,
+            }
+            npv_total = sum(npv_items.values())
+
+            pd.DataFrame([{**npv_items, "NPV_Total": npv_total, "Horizon_Years": H,
+                        "Discount_Rate": r}]).to_csv(
+                os.path.join(OUTPUT_DIR, "npv_results.csv"), index=False)
+
+                        # ---------------- BAU NPV (same method as optimiser) ----------------
+            bau_row = bau_df_results.iloc[0]
+            n_bau = len(TRUCKS)
+
+            bau_opex = bau_row["operation_cost"] * opex_scale
+            bau_om = bau_row["OM_cost"]
+
+            rep, res_ = opt.replacement_annualisation(DIESEL_CAPEX, H, r, DIESEL_L)
+            bau_npv_items = {
+                "Upfront CAPEX":        bau_row["upfront_capex"],
+                "Operating costs (PV)": bau_opex * annuity,
+                "Fixed O&M (PV)":       bau_om * annuity,
+                "Replacements (PV)":    rep / crf_H * n_bau,
+                "Residual value (PV)":  -res_ / crf_H * n_bau,
+            }
+            bau_npv_total = sum(bau_npv_items.values())
+
+
+
+            npv_text = format_npv_report(H, r, npv_items, npv_total,
+                             bau_npv_items, bau_npv_total, bau_row)
+            print(npv_text)
+
+            summary_file = os.path.join(output_dir, f"optimisation_summary_{max(results_year)}.txt")
+            with open(summary_file, "a", encoding="utf-8") as f:
+                f.write("\n" + npv_text)
 
     # ============================================================
     # Local Sensitivity Analysis

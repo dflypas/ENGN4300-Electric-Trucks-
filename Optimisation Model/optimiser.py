@@ -461,6 +461,20 @@ def optimiser(
     # Total annualised CAPEX
     an_capex = (an_capex_SB + an_capex_CS + an_capex_BESS + an_capex_PV + an_capex_retrofit + an_capex_diesel)
 
+    sin_capex_items = {
+    "Swappable batteries": battery_cost * N_SB,
+    "Chargers":            charger_cost * N_CS,
+    "Stationary BESS":     bess_capex_per_kwh * Q_BESS,
+    "PV":                  pv_capex_per_kw * E_PV_cap,
+    "Truck retrofits":     retrofit_cost * (gp.quicksum(k[i] for i in trucks)
+                                            + sum(truck_base_electric.values())),
+    "Diesel trucks":       diesel_capex * N_D,
+    }
+
+    sin_capex = gp.quicksum(sin_capex_items.values())
+
+
+
 
     # ============================================================
     # REPLACEMENTS and RESIDUALS
@@ -590,6 +604,10 @@ def optimiser(
         df_results_year["Batteries_New"] = int(round(N_SB.X - sb_cap_min))
         df_results_year["Batteries_Total"] = int(round(N_SB.X))
         df_results_year["Number_of_Retrofits"] = round(N_EV.X)
+
+        df_results_year["Upfront_CAPEX"] = sin_capex.getValue()
+        for name, expr in sin_capex_items.items():
+            df_results_year[f"Upfront_CAPEX_{name.replace(' ', '_')}"] = expr.getValue()
         
         # BESS SOC
         if Q_BESS.X > 0:
@@ -621,6 +639,14 @@ def optimiser(
         df_results_year["Annual_BESS_Charge_kWh"] = sum(P_BESS_ch[t].X * dt for t in times)
         df_results_year["Annual_BESS_Discharge_kWh"] = sum(P_BESS_dis[t].X * dt for t in times)
         df_results_year["Annual_SB_Charge_kWh"] = float(P_SB_ch.X.sum() * dt)
+
+        spend_items = {
+                    "Upfront CAPEX":     sin_capex.getValue(),
+                    "Operating costs":   an_op.getValue(),    # grid import - export revenue + diesel + network charges
+                    "Fixed O&M":         an_om.getValue(),
+                }
+        total_spend = sum(spend_items.values())
+
         
         # Costs
         df_results_year["Total_Cost"] = obj1.getValue()
@@ -629,6 +655,7 @@ def optimiser(
         df_results_year["Replacement_Cost"] = an_rep.getValue()
         df_results_year["Residual_Value"] = an_res.getValue()
         df_results_year["OM_Cost"] = an_om.getValue()
+        df_results_year["Total_Spend"] = total_spend
         
         # Solver information
         df_results_year["MIP_Gap_Percent"] = m.MIPGap * 100
@@ -638,6 +665,7 @@ def optimiser(
         # Truck conversion status
         for i in trucks:
             df_results_year[f"Truck_{i}_Electric"] = int(round(z[i].X))
+
         
         # Store all yearly results
         results_year = {
@@ -652,7 +680,11 @@ def optimiser(
             "BESS_discharge_capacity_kW": P_BESS_dis_inst.X,
             "PV_capacity_kW": E_PV_cap.X,
             "grid_capacity_kW": S_G.X,
+            "upfront_capex": sin_capex.getValue(),
+            "upfront_capex_items": {n: e.getValue() for n, e in sin_capex_items.items()},
             "time_series": df_results_year,
+            "spend_items": spend_items,
+            "total_spend": total_spend,
         }
 
         
@@ -737,6 +769,7 @@ def print_optimisation_results(results, year=None, fleet_size=None):
         ("Fixed O&M", row["OM_Cost"]),
     ]
 
+
     total = row["Total_Cost"]
 
     print(f"{'Cost category':<28}{'Annual cost':>19}{'Share':>12}")
@@ -747,7 +780,18 @@ def print_optimisation_results(results, year=None, fleet_size=None):
         print(f"{label:<28}{money(cost):>19}{share:>11.1f}%")
 
     print("-" * 62)
-    print(f"{'TOTAL':<28}{money(total):>19}{'100.0%':>12}")
+    print(f"{'TOTAL ANNUAL':<28}{money(total):>19}{'100.0%':>12}")
+
+    print("\n3b. TOTAL EXPENDITURE THIS RUN")
+    print("-" * 62)
+    spend_total = results["total_spend"]
+    print(f"{'Item':<28}{'Amount':>19}{'Share':>12}")
+    print("-" * 62)
+    for label, value in results["spend_items"].items():
+        share = 100 * value / spend_total if spend_total else 0
+        print(f"{label:<28}{money(value):>19}{share:>11.1f}%")
+    print("-" * 62)
+    print(f"{'TOTAL SPEND':<28}{money(spend_total):>19}{'100.0%':>12}")
 
     # 4. Annual energy performance
     print("\n4. ANNUAL ENERGY PERFORMANCE")

@@ -1,0 +1,55 @@
+
+==============================================================
+OPTIMISATION RESULTS — YEAR 2035
+==============================================================
+
+1. EXECUTIVE SUMMARY
+--------------------------------------------------------------
+Annual total cost:       $757,287.49
+Electric trucks:         8
+New truck retrofits:     8
+Solver status:           Optimal
+Solve time:              899.18 seconds
+Diesel trucks remaining: 0
+Fleet electrification:   100.0%
+
+2. OPTIMAL INFRASTRUCTURE
+--------------------------------------------------------------
+PV capacity:             1,000.0 kW
+Stationary BESS:         3,538.3 kWh
+BESS charge power:       2,000.0 kW
+BESS discharge power:    2,000.0 kW
+Grid connection:         3,000.0 kW
+Swappable batteries:     6
+Chargers:                2
+Diesel fuel cost:        $0.00
+
+3. ANNUAL COST BREAKDOWN
+--------------------------------------------------------------
+Cost category                       Annual cost       Share
+--------------------------------------------------------------
+Operating costs                      $-5,344.41       -0.7%
+Annualised CAPEX                    $586,753.01       77.5%
+Replacement costs                   $202,940.45       26.8%
+Residual value                      $-72,369.07       -9.6%
+Fixed O&M                            $45,307.51        6.0%
+--------------------------------------------------------------
+TOTAL                               $757,287.49      100.0%
+
+4. ANNUAL ENERGY PERFORMANCE
+--------------------------------------------------------------
+Grid electricity imported              57.72 MWh
+Electricity exported                  300.56 MWh
+PV electricity generated            1,554.33 MWh
+BESS energy charged                   484.75 MWh
+BESS energy discharged                393.29 MWh
+Swappable battery charging          1,220.03 MWh
+
+5. GRID PERFORMANCE
+--------------------------------------------------------------
+Peak grid import:        219.7 kW
+Peak grid export:        1,000.0 kW
+
+==============================================================
+End of optimisation summary
+==============================================================

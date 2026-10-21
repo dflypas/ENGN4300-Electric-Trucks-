@@ -110,6 +110,8 @@ class EnergyDataProcessor:
         #PV
         pv_kW_start = pv_profile_generator_tmy(weather_data, self.lat, self.lon)
         pv_kW = np.array(pv_kW_start)
+        pv_kW = np.roll(np.array(pv_kW_start), 10)
+
 
 
         print("pv cf '{}'".format(round(pv_kW.mean(),3)))

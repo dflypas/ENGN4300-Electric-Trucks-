@@ -1,11 +1,179 @@
-#!/usr/bin/env python3
-# -*- coding: utf-8 -*-
-"""
-Created on Mon Sep  7 13:21:23 2026
+    """
+    Construct and solve the DairyDrive Electric MILP optimisation model.
 
-@author: mollyrobertson
+    Determines the cost-minimising fleet composition, energy
+    infrastructure capacities and hourly operating schedules.
 
-"""
+    Parameters
+    ----------
+    routes : iterable
+        Identifiers for the delivery routes.
+    trucks : iterable
+        Identifiers for the delivery trucks.
+    times : iterable
+        Ordered optimisation timesteps.
+    route_truck : dict
+        Mapping of each route to its assigned truck.
+    active_routes_at : dict
+        Active route identifiers at each timestep.
+    route_energy : dict
+        Energy required for each delivery route [kWh].
+    route_diesel_used : dict
+        Diesel consumed on each route [L].
+    route_departure, route_return : dict
+        Departure and return times for each route.
+    overlapping_routes : dict
+        Information describing overlapping delivery routes.
+
+    pv_profiles_t : dict
+        PV generation profile indexed by timestep.
+    pv_min : float
+        Minimum installed PV capacity [kW].
+    spot_price_t : dict
+        Wholesale electricity price indexed by timestep [AUD/MWh].
+    grid_price_t : dict
+        Retail electricity import tariff [AUD/kWh].
+    feed_in_tariff_t : dict
+        Electricity export tariff [AUD/kWh].
+    whole_market : int
+        Electricity pricing mode: 1 for wholesale, otherwise retail.
+    month_limits : sequence
+        Timestep boundaries used for monthly network charges.
+    months : int
+        Number of modelled billing months.
+    df_data : pandas.DataFrame
+        Network tariff classification and energy charge data.
+    dict_limits : dict
+        Network demand charge rates and minimum charge parameters.
+    network_access_cost : float
+        Network access charge [AUD].
+    diesel_price : float
+        Diesel fuel price [AUD/L].
+
+    duration_days : int
+        Number of days represented by the optimisation.
+    dt : float
+        Duration of each timestep [hours].
+    first_t, last_t : int
+        Initial and final timestep identifiers.
+    batteries, chargers : iterable
+        Candidate battery and charger identifiers.
+    n_trucks : int
+        Number of trucks supplied to the model.
+
+    sb_cap : float
+        Energy capacity of each swappable battery [kWh].
+    sb_min_soc, sb_max_soc, sb_initial_soc : float
+        Minimum, maximum and initial battery SOC fractions.
+    sb_charge_efficiency, sb_discharge_efficiency : float
+        Swappable battery charging and discharging efficiencies.
+    sb_cap_min : int
+        Minimum number of installed swappable batteries.
+    sb_self_discharge : float
+        Battery self-discharge fraction per timestep.
+    sb_max_charge_power : float
+        Maximum charging power per battery [kW].
+
+    battery_cost : float
+        Capital cost per swappable battery [AUD].
+    charger_power_kw : float
+        Rated power per charger [kW].
+    charger_cost : float
+        Capital cost per charger [AUD].
+    charger_min : int
+        Minimum number of installed chargers.
+
+    bess_initial_soc, bess_min_soc, bess_max_soc : float
+        Initial, minimum and maximum BESS SOC fractions.
+    bess_max_cap, bess_min_cap : float
+        Maximum and minimum BESS energy capacities [kWh].
+    bess_max_charge_power, bess_max_discharge_power : float
+        Maximum installed BESS charging and discharging power [kW].
+    bess_charge_efficiency, bess_discharge_efficiency : float
+        BESS charging and discharging efficiencies.
+    bess_self_discharge : float
+        BESS self-discharge fraction per timestep.
+    bess_charge_c_rate, bess_discharge_c_rate : float
+        BESS charging and discharging C-rate limits [1/hour].
+
+    max_grid_import, max_grid_export : float
+        Maximum permitted grid import and export power [kW].
+    existing_grid_capacity : float
+        Minimum existing grid connection capacity [kW].
+    max_grid_capacity : float
+        Maximum permitted grid connection capacity [kW].
+
+    pv_efficiency : float
+        PV efficiency parameter supplied by the calling pipeline.
+    pv_max_kw : float
+        Maximum permitted PV installation capacity [kW].
+    pv_capex_per_kw : float
+        PV capital expenditure per installed kW [AUD/kW].
+
+    bess_capex_per_kwh : float
+        BESS capital expenditure per installed kWh [AUD/kWh].
+    retrofit_cost : float
+        Capital cost of converting a truck to electric [AUD].
+    diesel_capex : float
+        Capital cost per diesel truck [AUD].
+
+    discount_rate : float
+        Annual discount rate expressed as a decimal.
+    project_lifetime : float
+        Financial project analysis period [years].
+
+    sb_lifetime, charger_lifetime, bess_lifetime : float
+        Technology service lifetimes [years].
+    pv_lifetime, retrofit_lifetime, diesel_lifetime : float
+        Technology service lifetimes [years].
+
+    sb_om, charger_om, bess_om, pv_om : float
+        Annual fixed O&M fractions of capital cost.
+    retrofit_om, diesel_om : float
+        Annual fixed O&M fractions of capital cost.
+
+    fleet_size : int
+        Total number of trucks in the fleet.
+    truck_base_electric : dict
+        Existing electric conversion status for each truck.
+
+    routes_departing_at : dict
+        Routes departing at each timestep.
+    route_pre_departure : dict
+        Required pre-departure timestep for each route.
+    aux_load_t : dict
+        Auxiliary depot electrical demand [kW].
+
+    time_limit : float or None, optional
+        Maximum solver runtime [seconds]. Default is None.
+    mip_gap : float, optional
+        Relative mixed-integer optimality gap. Default is 0.05.
+
+    Returns
+    -------
+    dict
+        Optimisation results, including selected infrastructure,
+        fleet composition, cost components, hourly time-series
+        data and solver performance information.
+
+    tuple
+        Returns (None, None) when no feasible solution is found.
+
+    Notes
+    -----
+    The objective minimises annualised capital expenditure,
+    replacement costs, operating costs and fixed O&M expenditure,
+    less residual value and electricity export revenue.
+
+    Replacement and residual costs are calculated using the
+    replacement_annualisation() function.
+
+    Previously installed infrastructure is represented through
+    minimum capacity and fleet conversion constraints.
+
+    The optimisation requires a compatible Gurobi installation
+    and licence.
+    """
 
 import numpy as np
 import scipy.sparse as sp
@@ -821,18 +989,69 @@ def print_optimisation_results(results, year=None, fleet_size=None):
     print("End of optimisation summary")
     print("=" * 62)
 
+# ============================================================
+# Replacement Cost and Residual Value Annualisation
+# ============================================================
+
 def replacement_annualisation(
     unit_cost,
     project_lifetime,
     discount_rate,
-    technology_lifetime
+    technology_lifetime,
+    rep_factor=0.75
 ):
     """
-    Annualised replacement cost and annualised residual value, returned
-    separately as (replacement, residual). Both are positive numbers.
-    Net cost = replacement - residual.
+    Calculate annualised replacement costs and residual values.
 
-    Assumes straight-line depreciation and constant replacement cost.
+    Replacement expenditure is discounted to present value and
+    converted to an equivalent annual cost using the capital
+    recovery factor (CRF).
+
+    Residual value is calculated using straight-line depreciation
+    based on the remaining useful life of the final installed asset.
+
+    Parameters
+    ----------
+    unit_cost : float
+        Initial capital cost per unit of technology [AUD].
+    project_lifetime : float
+        Financial project analysis period [years].
+    discount_rate : float
+        Annual discount rate expressed as a decimal [-].
+    technology_lifetime : float
+        Expected service lifetime of the technology [years].
+    rep_factor : float, optional
+        Replacement cost as a fraction of initial capital cost.
+        Default is 0.75.
+
+    Returns
+    -------
+    annualised_replacement : float
+        Equivalent annual replacement expenditure [AUD/year].
+    annualised_residual : float
+        Equivalent annual residual value credit [AUD/year].
+
+    Raises
+    ------
+    ValueError
+        If either lifetime is non-positive, the discount rate
+        is negative, or the replacement factor is outside [0, 1].
+
+    Notes
+    -----
+    - Replacement occurs at the end of each technology lifetime,
+      provided this occurs before the project endpoint.
+    - Replacement costs are assumed constant in real terms.
+    - Replacement expenditure is 75% of initial capital cost
+      unless another replacement factor is specified.
+    - Residual value is based on the acquisition cost of the
+      final asset and its remaining useful life.
+    - Replacement and residual values are discounted to the
+      beginning of the project before annualisation.
+    - Initial capital expenditure is accounted for separately
+      within the optimiser objective function.
+    - Asset installation is assumed to occur at the beginning
+      of the financial analysis period.
     """
 
     if project_lifetime <= 0:
@@ -844,13 +1063,19 @@ def replacement_annualisation(
     if discount_rate < 0:
         raise ValueError("Discount rate cannot be negative.")
 
+    if not 0 <= rep_factor <= 1:
+        raise ValueError("Replacement factor must be between 0 and 1.")
+    
+    # Apply the replacement cost factor to initial capital cost.
+    unit_rep_cost = unit_cost * rep_factor
+    
     # Present value of replacements during the project.
     replacement_present_value = 0.0
     replacement_year = technology_lifetime
 
     while replacement_year < project_lifetime:
         replacement_present_value += (
-            unit_cost / (1 + discount_rate) ** replacement_year
+            unit_rep_cost / (1 + discount_rate) ** replacement_year
         )
         replacement_year += technology_lifetime
 
@@ -863,7 +1088,7 @@ def replacement_annualisation(
         residual_value = 0.0
     else:
         residual_value = (
-            unit_cost
+            unit_rep_cost
             * remaining_life
             / technology_lifetime
         )
@@ -883,3 +1108,5 @@ def replacement_annualisation(
         )
 
     return replacement_present_value * crf, residual_present_value * crf
+
+

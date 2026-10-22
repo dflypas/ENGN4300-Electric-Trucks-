@@ -228,6 +228,7 @@ def run_pipeline(overrides=None, time_limit=None, mip_gap=None):
         GRID_MAX_CAPACITY = float(inputs["GRID_max_capacity"])
         GRID_ONPEAK_PRICE = float(inputs["GRID_onpeak_price"])
         GRID_OFFPEAK_PRICE = float(inputs["GRID_offpeak_price"])
+        GRID_UPGRADE_PRICE = float(inputs["GRID_upgrade_price"])
         FIT_on_peak = float(inputs["F_I_T_on_peak"])
         FIT_off_peak = float(inputs["F_I_T_off_peak"])
         FIT_flat = float(inputs["F_I_T_flat"])
@@ -407,6 +408,7 @@ def run_pipeline(overrides=None, time_limit=None, mip_gap=None):
             "max_grid_export": GRID_MAX_EXPORT,
             "existing_grid_capacity": GRID_EXISTING_CAPACITY,
             "max_grid_capacity": GRID_MAX_CAPACITY,
+            "grid_upgrade_price": GRID_UPGRADE_PRICE,
         
             "pv_efficiency": PV_EFFICIENCY,
             "pv_max_kw": PV_MAX_KW,

@@ -155,7 +155,10 @@ def run_pipeline(overrides=None, time_limit=None, mip_gap=None):
         # numeric types required by the processors and optimisation model.
         input_data = pd.read_csv(os.path.join(INPUT_DIR, "input_data.csv"))
         inputs = input_data.set_index("field_name")["value"].to_dict()
-    
+
+        # Apply any user-specified overrides to the CSV inputs
+        inputs.update(overrides)
+        
         # Project Time Set
         PROJECT_DURATION_DAYS = int(inputs["duration"])
         # The full horizon is partitioned into annual optimisation runs.

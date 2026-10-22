@@ -1,9 +1,32 @@
-#!/usr/bin/env python3
-# -*- coding: utf-8 -*-
-"""
+"""DairyDrive Electric optimisation pipeline entry point.
 
-This doc is using Viv's Structure
-main.py is the main entry point for the DairyDrive Electric optimisation pipeline. It loads input data, applies any overrides, processes data, and runs the optimisation model.
+Coordinates input loading, time-series and route-data processing, the
+business-as-usual (BAU) baseline, and successive annual MILP solves.
+Infrastructure and fleet-conversion decisions are carried forward between
+annual solves. The module also writes optimisation outputs, prepares a
+lifetime net-present-value (NPV) comparison, and optionally performs
+one-at-a-time local sensitivity analysis.
+
+Input files
+-----------
+input_data.csv : Model configuration and technology/economic assumptions.
+spot_price.csv : Wholesale electricity prices.
+diesel_price_prediction.csv : Predicted annual diesel prices.
+route_schedule_2.csv : Delivery route schedule and energy/fuel requirements.
+
+Output files
+------------
+results/bau_results.csv : BAU model results.
+results/results_year_timeseries<year>.csv : Hourly optimisation results.
+results/results_year<year>.csv : Annual optimisation summary.
+results/npv_results.csv : Optimiser lifetime NPV breakdown.
+results/local_sensitivity_analysis.csv : Optional sensitivity results.
+outputs/optimisation_summary_<year>.txt : Human-readable run summary.
+
+Notes
+-----
+The optimisation model and the BAU model are implemented in separate modules.
+The main pipeline requires their input data and associated processor modules.
 """
 
 import json
@@ -35,6 +58,27 @@ OUTPUT_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "results")
 os.makedirs(OUTPUT_DIR, exist_ok=True)
 
 def format_npv_report(H, r, npv_items, npv_total, bau_npv_items, bau_npv_total, bau_row):
+    """Format a side-by-side lifetime NPV comparison as plain text.
+
+    Parameters
+    ----------
+    H : int
+        Financial analysis horizon in years.
+    r : float
+        Annual discount rate as a decimal.
+    npv_items, bau_npv_items : dict
+        Named present-value cost components for the optimised and BAU cases.
+    npv_total, bau_npv_total : float
+        Total present-value costs for the two cases [AUD].
+    bau_row : pandas.Series or mapping
+        BAU result containing ``upfront_capex`` and ``total_spend``.
+
+    Returns
+    -------
+    str
+        Multiline, human-readable comparison report.
+    """
+    
     lines = []
     lines.append("=" * 62)
     lines.append(f"NPV OF LIFETIME COST ({H} years, {r:.1%} discount rate)")
@@ -66,11 +110,35 @@ def format_npv_report(H, r, npv_items, npv_total, bau_npv_items, bau_npv_total, 
     lines.append(f"{'BAU total spend (run)':<28}{'$' + format(bau_row['total_spend'], ',.0f'):>19}")
     return "\n".join(lines) + "\n"
 
+
 # ============================================================
 # Process Data
 # ============================================================
 def run_pipeline(overrides=None, time_limit=None, mip_gap=None):
+    """Execute the DairyDrive Electric modelling and reporting pipeline.
 
+    Parameters
+    ----------
+    overrides : dict or None, optional
+        Reserved for input overrides. The current implementation initialises
+        this argument but does not apply its entries to the loaded inputs.
+    time_limit : float or None, optional
+        Maximum Gurobi solve time per optimisation call [seconds].
+    mip_gap : float or None, optional
+        Relative mixed-integer optimality gap passed to the optimiser.
+
+    Returns
+    -------
+    None
+        Writes output CSV and text files as side effects.
+
+    Notes
+    -----
+    For horizons exceeding one year, the optimiser solves successive
+    one-year operating periods and carries forward selected investments.
+    The NPV report is calculated from the final available solution.
+    """
+    
     if overrides is None:
         overrides = {}    
     
@@ -82,12 +150,15 @@ def run_pipeline(overrides=None, time_limit=None, mip_gap=None):
         # ============================================================
         # Load and Define Static Input Data
         # ============================================================
-    
+        
+        # Load field-name/value pairs and convert individual entries to the
+        # numeric types required by the processors and optimisation model.
         input_data = pd.read_csv(os.path.join(INPUT_DIR, "input_data.csv"))
         inputs = input_data.set_index("field_name")["value"].to_dict()
     
         # Project Time Set
         PROJECT_DURATION_DAYS = int(inputs["duration"])
+        # The full horizon is partitioned into annual optimisation runs.
         N_YEARS = max(1, math.ceil(PROJECT_DURATION_DAYS / 365))
         YEARS = list(range(N_YEARS))
         DT = float(inputs["dt"])
@@ -114,7 +185,6 @@ def run_pipeline(overrides=None, time_limit=None, mip_gap=None):
         # Candidates
         MAX_CANDIDATE_BATTERIES = int(inputs["max_candidate_batteries"])
         MAX_CANDIDATE_CHARGERS = int(inputs["max_candidate_chargers"])
-    
         BATTERIES = list(range(MAX_CANDIDATE_BATTERIES))
         CHARGERS = list(range(MAX_CANDIDATE_CHARGERS))
     
@@ -193,6 +263,8 @@ def run_pipeline(overrides=None, time_limit=None, mip_gap=None):
         AUX_LOAD_T = {t: 0 for t in TIMES}
     
         # Year 1 Default Values
+        # Minimum installed capacities start at zero; later annual runs
+        # replace these values with the previous year's selected assets.
         MIN_CANDIDATE_BATTERIES = 0
         MIN_CANDIDATE_CHARGERS = 0
         SB_CAP_MIN = 0
@@ -205,6 +277,8 @@ def run_pipeline(overrides=None, time_limit=None, mip_gap=None):
         # ============================================================
     
         # PV Profile Data Processing
+        # Convert the weather-based PV output to a timestep-indexed profile
+        # consumed by the optimisation model.
         energy_data_processor = ep.EnergyDataProcessor(YEAR,LATITUDE,LONGITUDE)
         pv_generated_df = energy_data_processor.create_pv_profile_csv("pv_profile_output.csv")
         pv_profiles = pv_generated_df["PV_Profile"].tolist()
@@ -234,6 +308,8 @@ def run_pipeline(overrides=None, time_limit=None, mip_gap=None):
         M = len(MONTH_LIMITS)
     
         # Route Data Processing 
+        # Expand the route schedule and obtain route-to-truck assignments,
+        # departures, energy demand, and timestep-level route activity.
         route_data_processor = rt.RouteDataProcessor(route_csv=os.path.join(INPUT_DIR, "route_schedule_2.csv"), duration_days=DURATION_DAYS, times=TIMES)
         ROUTES = route_data_processor.routes
         TRUCKS = route_data_processor.trucks
@@ -253,7 +329,8 @@ def run_pipeline(overrides=None, time_limit=None, mip_gap=None):
         TRUCK_FIRST_YEAR = {i: YEARS[0] for i in TRUCKS}
         TRUCK_BASE_ELECTRIC = {i: 0 for i in TRUCKS}
     
-        
+        # Assemble the optimiser's named arguments in a single dictionary.
+        # This also provides a reusable baseline for sensitivity analysis.
         optimiser_inputs = {
         
             "routes": ROUTES,
@@ -362,7 +439,6 @@ def run_pipeline(overrides=None, time_limit=None, mip_gap=None):
             "aux_load_t": AUX_LOAD_T,
         }
         
-    
         if time_limit is not None:
             optimiser_inputs["time_limit"] = time_limit
         if mip_gap is not None:
@@ -375,6 +451,8 @@ def run_pipeline(overrides=None, time_limit=None, mip_gap=None):
     RUN_BAU = True
     
     if RUN_BAU:
+        # Calculate the all-diesel reference case using the same route
+        # schedule, analysis horizon and financial assumptions.
         bau_df_results = bau.business_as_usual(
             routes=ROUTES,
             route_diesel_used=ROUTE_DIESEL_USED,
@@ -402,8 +480,9 @@ def run_pipeline(overrides=None, time_limit=None, mip_gap=None):
     RUN_OPTIMISER = True
     
     if RUN_OPTIMISER:
-        
-
+    
+        # Store each year's solution and maintain a mutable copy of the
+        # input assumptions for sequential annual optimisation runs.
         results_year = {}
         current_inputs = optimiser_inputs.copy()
 
@@ -413,6 +492,8 @@ def run_pipeline(overrides=None, time_limit=None, mip_gap=None):
             print(f"RUNNING OPTIMISATION FOR YEAR {YEAR}")
             print("=" * 62)
 
+            # Solve the current year's MILP using the accumulated minimum
+            # asset capacities and existing truck-conversion statuses.
             results_year[YEAR] = opt.optimiser(**current_inputs)
 
             # Stop if no valid solution
@@ -477,6 +558,9 @@ def run_pipeline(overrides=None, time_limit=None, mip_gap=None):
 
             optimal = results_year[YEAR]
 
+            # Carry forward installed assets and irreversible conversions.
+            # These values become lower bounds or fixed statuses in the
+            # following year's optimisation, rather than new purchases.
             current_inputs["sb_cap_min"] = int(optimal["batteries_total"])
             current_inputs["charger_min"] = int(optimal["chargers_total"])
             current_inputs["bess_min_cap"] = float(optimal["BESS_capacity_kWh"])
@@ -491,6 +575,8 @@ def run_pipeline(overrides=None, time_limit=None, mip_gap=None):
             # ============================================================
             # NPV of lifetime cost (reporting only)
             # ============================================================
+            # Convert equivalent annual costs into present values and
+            # compare the final selected system with the all-diesel baseline.
             H = N_YEARS                                  
             r = DISCOUNT_RATE
             opex_scale = 365 / DURATION_DAYS        
@@ -507,6 +593,8 @@ def run_pipeline(overrides=None, time_limit=None, mip_gap=None):
             n_retrofit = sum(final["truck_base_electric"].values())
             n_diesel = FLEET_SIZE[0] - n_retrofit
 
+            # Recalculate replacement and residual-value present values
+            # for each technology using the optimiser's financial helper.
             assets = [
                 ("Swappable batteries", SB_CAPEX,           SB_L,       final["batteries_total"]),
                 ("Chargers",            C_CAPEX,            C_L,        final["chargers_total"]),
@@ -535,7 +623,8 @@ def run_pipeline(overrides=None, time_limit=None, mip_gap=None):
                         "Discount_Rate": r}]).to_csv(
                 os.path.join(OUTPUT_DIR, "npv_results.csv"), index=False)
 
-                        # ---------------- BAU NPV (same method as optimiser) ----------------
+            # ---------------- BAU NPV (same method as optimiser) ----------------
+            # Apply the same NPV conventions to the BAU diesel fleet.
             bau_row = bau_df_results.iloc[0]
             n_bau = len(TRUCKS)
 
@@ -552,8 +641,6 @@ def run_pipeline(overrides=None, time_limit=None, mip_gap=None):
             }
             bau_npv_total = sum(bau_npv_items.values())
 
-
-
             npv_text = format_npv_report(H, r, npv_items, npv_total,
                              bau_npv_items, bau_npv_total, bau_row)
             print(npv_text)
@@ -567,7 +654,9 @@ def run_pipeline(overrides=None, time_limit=None, mip_gap=None):
     # ============================================================
     
     RUN_LSA = False
-    
+
+    # Parameters tested individually at +/-10% of their base values.
+    # The analysis is disabled unless RUN_LSA is set to True.
     LSA_PARAMS = {
         "diesel_price": "Diesel price",
         "battery_cost": "Swappable battery CAPEX",
@@ -580,7 +669,6 @@ def run_pipeline(overrides=None, time_limit=None, mip_gap=None):
         "sb_om": "Battery O&M",
         "discount_rate": "Discount rate",
     }
-    
     
     if RUN_LSA:
     
@@ -624,7 +712,9 @@ def run_pipeline(overrides=None, time_limit=None, mip_gap=None):
         # --------------------------------------------------------
         # 2. Change each parameter by +/- 10%
         # --------------------------------------------------------
-    
+
+        # Hold all other inputs constant while perturbing one parameter.
+        # Record both feasible solutions and infeasible solve outcomes.
         for parameter, parameter_name in LSA_PARAMS.items():
     
             base_value = optimiser_inputs[parameter]
@@ -773,9 +863,8 @@ def run_pipeline(overrides=None, time_limit=None, mip_gap=None):
         print("\nResults:")
         print(lsa_df)
     
-
-
-
+# Run the pipeline only when this module is executed as a script;
+# importing main.py does not automatically start an optimisation.
 if __name__ == "__main__":
     run_pipeline()
 

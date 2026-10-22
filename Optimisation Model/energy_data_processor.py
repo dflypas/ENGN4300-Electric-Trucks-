@@ -1,6 +1,14 @@
-#!/usr/bin/env python3
-# -*- coding: utf-8 -*-
+"""Prepare renewable generation and electricity-tariff inputs for DairyDrive Electric.
 
+Retrieves PVGIS typical-meteorological-year (TMY) weather data and generates
+a normalised photovoltaic output profile using pvlib. Also constructs
+optimisation datetime indices, retail electricity prices, feed-in tariffs,
+and time-of-use network tariff classifications and charges.
+
+The PV profile is location-specific; tariff rates and period definitions
+are configured in this module and should be checked against the intended
+network tariff before a production run.
+"""
 
 import numpy as np
 import pandas as pd
@@ -8,9 +16,8 @@ import pvlib
 from pvlib import pvsystem
 import datetime as dt
 
-
-
-
+# Default network tariff rates and minimum demand charge. 
+# Confirm currency, units and applicable tariff schedule before use.
 NETWORK_TARIFF = {
     'demand_rate_peak': 11.2678,
     'demand_rate_shoulder': 10.1946,
@@ -73,6 +80,7 @@ class EnergyDataProcessor:
             elevation: elevation of location [meters]
         """
 
+        # Retrieve a typical meteorological year for the specified coordinates.
         data, metadata = pvlib.iotools.get_pvgis_tmy(float(self.lat), float(self.lon), startyear=start_year, endyear=end_year, 
                                          outputformat='csv')
         elevation = metadata["inputs"]["elevation"]
@@ -85,6 +93,7 @@ class EnergyDataProcessor:
 
         data = data.set_index('time(UTC)')
 
+        # Replace missing irradiance with zero and clip negative wind speed.
         data['ghi'] = data['ghi'].fillna(0)
         data['dni'] = data['dni'].fillna(0)
         data['dhi'] = data['dhi'].fillna(0)
@@ -110,9 +119,9 @@ class EnergyDataProcessor:
         #PV
         pv_kW_start = pv_profile_generator_tmy(weather_data, self.lat, self.lon)
         pv_kW = np.array(pv_kW_start)
+        
+        # Shift the hourly PV profile by ten positions to align with the assumed timing convention.
         pv_kW = np.roll(np.array(pv_kW_start), 10)
-
-
 
         print("pv cf '{}'".format(round(pv_kW.mean(),3)))
         return pv_kW
@@ -120,7 +129,25 @@ class EnergyDataProcessor:
     def create_pv_profile_csv(
         self,
         output_csv="pv_profile_output.csv"):
-    
+        
+        """Generate and save the location-specific normalised PV profile.
+        
+        Parameters
+        ----------
+        output_csv : str, optional
+            Output CSV path for the timestamp and PV_Profile columns.
+            
+        Returns
+        -------
+        pandas.DataFrame
+            Generated PV profile with Time and PV_Profile columns.
+            
+        Notes
+        -----
+        Retrieves weather data using the configured location, then applies the
+        module's PV performance model before writing the resulting CSV.
+        """
+        
         # Get weather data
         weather_data, elevation = self.get_weather_data()
     
@@ -131,6 +158,7 @@ class EnergyDataProcessor:
         pv_output = pd.DataFrame({"Time": weather_data.index,"PV_Profile": pv_profile})
     
         # Save output
+        # Persist the profile for downstream use by main.py.
         pv_output.to_csv(output_csv,index=False)
     
         return pv_output
@@ -162,6 +190,31 @@ class EnergyDataProcessor:
         )
 
     def get_network_tariff_data(self, df_data, tariff=None, dt_hours=1.0):
+
+        """Classify timesteps by network tariff period and calculate charges.
+        
+        Parameters
+        ----------
+        df_data : pandas.DataFrame
+            DataFrame with a datetime index spanning the modelled horizon.
+        tariff : dict or None, optional
+            Demand, energy and access tariff parameters; defaults to NETWORK_TARIFF.
+        dt_hours : float, optional
+            Duration of each timestep in hours.
+        
+        Returns
+        -------
+        tuple
+            ``(df, month_limits, network_access_cost)`` where ``df`` contains
+            peak/shoulder/offpeak flags and network energy rates, ``month_limits``
+            maps zero-based billing months to their final timestep positions,
+            and ``network_access_cost`` is the horizon-wide access charge [AUD].
+        
+        Notes
+        -----
+        Peak and shoulder classifications apply on weekdays only; all remaining
+        timesteps are off-peak. Demand charges are subsequently applied in optimiser.py.
+        """
         
         tariff = tariff or NETWORK_TARIFF
         df = df_data.copy()
@@ -173,6 +226,7 @@ class EnergyDataProcessor:
                             ((hour >= 15) & (hour < 17)) |
                             ((hour >= 20) & (hour < 22)))
 
+        # Flag weekday peak, shoulder and off-peak intervals.
         df['peak'] = (is_weekday & is_peak_hour).astype(int)
         df['shoulder'] = (is_weekday & is_shoulder_hour).astype(int)
         df['offpeak'] = 1 - df['peak'] - df['shoulder']
@@ -183,18 +237,15 @@ class EnergyDataProcessor:
             + df['offpeak'] * tariff['energy_rate_offpeak']
         )
 
+        # Determine the last timestep of each billing month.
         month_counts = df.groupby(df.index.to_period('M')).size()
         month_limits = dict(enumerate((month_counts.cumsum() - 1).values))
 
+        # Prorate the fixed network access charge by modelled days.
         n_days = len(df) * dt_hours / 24
         network_access_cost = tariff['network_access_charge'] * n_days
 
-        return df, month_limits, network_access_cost
-    
-    
-        
-
-
+        return df, month_limits, network_access_cos
 
 def pv_profile_generator_tmy(weather_data, latitude: float, longitude: float,
                              surface_azimuth=0, surface_tilt=35,
@@ -239,6 +290,7 @@ def pv_profile_generator_tmy(weather_data, latitude: float, longitude: float,
     """
 
     # If TMY, delete first substrings from rows to avoid inconsitencies
+    # Extract weather variables required for PV performance modelling.
     temperature = weather_data['temp_air'].astype(float)
     windspeed = weather_data['wind_speed'].astype(float)
     ghi = weather_data['ghi']
@@ -246,12 +298,13 @@ def pv_profile_generator_tmy(weather_data, latitude: float, longitude: float,
     dhi = weather_data['dhi']
     pressure = weather_data['pressure'].astype(float)
 
-    # Solar details for location
+    # Calculate solar position at the site for each weather timestamp.
     sp = pvlib.solarposition.get_solarposition(weather_data.index,
                                                float(latitude),
                                                float(longitude),
                                                pressure=pressure
                                                )
+    # Convert horizontal and direct/diffuse irradiance to plane-of-array irradiance.
     irradiance = pvlib.irradiance.get_total_irradiance(surface_tilt,
                                                        surface_azimuth,
                                                        sp.apparent_zenith,
@@ -260,6 +313,7 @@ def pv_profile_generator_tmy(weather_data, latitude: float, longitude: float,
                                                        )
 
     # Get db with modules, choose the one in the function and get specs
+    # Load Sandia module parameters and select the configured multi-Si panel.
     modules = pvsystem.retrieve_sam('SandiaMod').T
     modules_multi_si = modules[modules['Material'] == 'mc-Si']
     multi_si = modules_multi_si[
@@ -267,6 +321,7 @@ def pv_profile_generator_tmy(weather_data, latitude: float, longitude: float,
     multi_si = multi_si[module_spec]
 
     # Relative airmass and aoi
+    # Calculate atmospheric air mass and panel incidence angle.
     airmass = pvlib.atmosphere.get_relative_airmass(sp.apparent_zenith)
     airmass_absolute = pvlib.atmosphere.get_absolute_airmass(airmass,
                                                              pressure=pressure
@@ -278,6 +333,7 @@ def pv_profile_generator_tmy(weather_data, latitude: float, longitude: float,
                                )
 
     # Cell temperature
+    # Select the cell-temperature model based on installation type.
     if type_pv == 'roof_mounted':
         temp_model_params = (pvlib.temperature
                              .TEMPERATURE_MODEL_PARAMETERS['sapm'][
@@ -295,6 +351,7 @@ def pv_profile_generator_tmy(weather_data, latitude: float, longitude: float,
     else:
         raise ValueError('Invalid type of PV panel installation')
 
+    # Compute effective irradiance and module DC output using SAPM.
     effective_irradiance = pvsystem.sapm_effective_irradiance(
                                 irradiance.poa_direct, irradiance.poa_diffuse,
                                 airmass_absolute, aoi, multi_si)
@@ -317,6 +374,7 @@ def pv_profile_generator_tmy(weather_data, latitude: float, longitude: float,
     ac_mod[ac_mod < 0] = 0
 
     # Generate profile per 1 kWp
+    # Normalise AC output to installed peak PV capacity for optimiser input.
     total_profile_tmy = (1/kWp) * ac_mod
 
     print('Calculated PV profile with a capacity factor of '

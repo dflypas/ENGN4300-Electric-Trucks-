@@ -203,7 +203,7 @@ def optimiser(
     bess_charge_c_rate, bess_discharge_c_rate,
 
     max_grid_import, max_grid_export,
-    existing_grid_capacity, max_grid_capacity,
+    existing_grid_capacity, max_grid_capacity, grid_upgrade_price,
 
     pv_efficiency, pv_max_kw, pv_capex_per_kw,
 
@@ -657,11 +657,14 @@ def optimiser(
     # Diesel
     an_capex_diesel = crf * diesel_capex * N_D
 
+    #Grid Upgrades
+    an_capex_grid = crf * (S_G-existing_grid_capacity) * grid_upgrade_price
+
     # Truck retrofits
     an_capex_retrofit = crf * retrofit_cost * (gp.quicksum(k[i] for i in trucks)+ sum(truck_base_electric.values()))
 
     # Total annualised CAPEX
-    an_capex = (an_capex_SB + an_capex_CS + an_capex_BESS + an_capex_PV + an_capex_retrofit + an_capex_diesel)
+    an_capex = (an_capex_SB + an_capex_CS + an_capex_BESS + an_capex_PV + an_capex_retrofit + an_capex_diesel + an_capex_grid)
 
     sin_capex_items = {
     "Swappable batteries": battery_cost * N_SB,
@@ -670,6 +673,7 @@ def optimiser(
     "PV":                  pv_capex_per_kw * E_PV_cap,
     "Truck retrofits":     retrofit_cost * (gp.quicksum(k[i] for i in trucks)
                                             + sum(truck_base_electric.values())),
+    "Grid Upgrades":       (S_G-existing_grid_capacity) * grid_upgrade_price,
     "Diesel trucks":       diesel_capex * N_D,
     }
 
@@ -805,6 +809,7 @@ def optimiser(
         df_results_year["BESS_Charge_Capacity_kW"] = P_BESS_ch_inst.X
         df_results_year["BESS_Discharge_Capacity_kW"] = P_BESS_dis_inst.X
         df_results_year["Grid_Capacity_kW"] = S_G.X
+        df_results_year["Grid_Upgrade_$"] = (S_G.X-existing_grid_capacity)*grid_upgrade_price
         df_results_year["Chargers_Existing"] = int(charger_min)
         df_results_year["Chargers_New"] = int(round(N_CS.X - charger_min))
         df_results_year["Chargers_Total"] = int(round(N_CS.X))
@@ -888,6 +893,7 @@ def optimiser(
             "BESS_discharge_capacity_kW": P_BESS_dis_inst.X,
             "PV_capacity_kW": E_PV_cap.X,
             "grid_capacity_kW": S_G.X,
+            "grid_upgrade_$": (S_G.X-existing_grid_capacity) * grid_upgrade_price,
             "upfront_capex": sin_capex.getValue(),
             "upfront_capex_items": {n: e.getValue() for n, e in sin_capex_items.items()},
             "time_series": df_results_year,

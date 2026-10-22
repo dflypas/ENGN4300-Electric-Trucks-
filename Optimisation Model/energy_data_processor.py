@@ -245,7 +245,7 @@ class EnergyDataProcessor:
         n_days = len(df) * dt_hours / 24
         network_access_cost = tariff['network_access_charge'] * n_days
 
-        return df, month_limits, network_access_cos
+        return df, month_limits, network_access_cost
 
 def pv_profile_generator_tmy(weather_data, latitude: float, longitude: float,
                              surface_azimuth=0, surface_tilt=35,

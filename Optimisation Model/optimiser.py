@@ -311,39 +311,63 @@ def optimiser(
     # Decision Variables
     # ============================================================
 
+    # Model Procedure: D2 / F1
     N_EV = m.addVar(vtype=GRB.INTEGER, lb=0, name="N_EV")
+    # Model Procedure: D2 / F2
     N_D = m.addVar(vtype=GRB.INTEGER, lb=0, name="N_D")
+    # Model Procedure: D2 / SB1
     N_SB = m.addVar(vtype=GRB.INTEGER, lb=sb_cap_min, ub=len(batteries), name="N_SB")   #Change
+    # Model Procedure: D2 / C1
     N_CS = m.addVar(vtype=GRB.INTEGER, lb=charger_min, ub=len(chargers), name="N_CS")   #Change
 
+    # Model Procedure: D1 / F3
     z = m.addVars(trucks, vtype=GRB.BINARY, name="z")
+    # Model Procedure: D1 / F4
     k = m.addVars(trucks, vtype=GRB.BINARY, name="k")
 
     # Matrix-form variables (SB/charging/SOC/E1 blocks below use these)
+    # Model Procedure: D1 / SB1 / SB5
     w       = m.addMVar(NB,       vtype=GRB.BINARY,    name="w")
+    # Model Procedure: D1 / SB2 / SB3
     a       = m.addMVar((NR, NB), vtype=GRB.BINARY,    name="a")
+    # Model Procedure: D1 / C2 (SB charging mode)
     x_SB_ch = m.addMVar((NT, NB), vtype=GRB.BINARY,    name="x_SB_ch")
+    # Model Procedure: D3 / SOC1
     E_SB    = m.addMVar((NT, NB), lb=0, ub=sb_max_soc * sb_cap, name="E_SB")
+    # Model Procedure: D3 / C3
     P_SB_ch = m.addMVar((NT, NB), lb=0, ub=sb_max_charge_power, name="P_SB_ch")
 
+    # Model Procedure: D3 / B1
     Q_BESS = m.addVar(vtype=GRB.CONTINUOUS, lb=0, ub=bess_max_cap, name="Q_BESS")
+    # Model Procedure: D3 / B2
     P_BESS_ch_inst = m.addVar(vtype=GRB.CONTINUOUS, lb=0, ub=bess_max_charge_power, name="P_BESS_ch_inst")
+    # Model Procedure: D3 / B2
     P_BESS_dis_inst = m.addVar(vtype=GRB.CONTINUOUS, lb=0, ub=bess_max_discharge_power, name="P_BESS_dis_inst")
+    # Model Procedure: D3 / B3
     E_BESS = m.addVars(times, vtype=GRB.CONTINUOUS, lb=0, ub=bess_max_soc * bess_max_cap, name="E_BESS")
+    # Model Procedure: D3 / B4
     P_BESS_ch = m.addVars(times, vtype=GRB.CONTINUOUS, lb=0, ub=bess_charge_bound, name="P_BESS_ch")
+    # Model Procedure: D3 / B5
     P_BESS_dis = m.addVars(times, vtype=GRB.CONTINUOUS, lb=0, ub=bess_discharge_bound, name="P_BESS_dis")
+    # Model Procedure: D1 / B6
     x_BESS = m.addVars(times, vtype=GRB.BINARY, name="x_BESS")
 
+    # Model Procedure: D3 / PV1
     E_PV_cap = m.addVar(vtype=GRB.CONTINUOUS, lb=0, ub=pv_max_kw, name="E_PV_cap")
+    # Model Procedure: D3 / PV2
     P_PV_generated = m.addVars(times, vtype=GRB.CONTINUOUS, lb=0, name="P_PV_generated")
 
+    # Model Procedure: D3 / G1
     S_G = m.addVar(vtype=GRB.CONTINUOUS, lb=0, ub=max_grid_capacity, name="S_G")
+    # Model Procedure: D3 / G2 / G4
     P_G_imp = m.addVars(times, vtype=GRB.CONTINUOUS, lb=0, ub=grid_import_bound, name="P_G_imp")
+    # Model Procedure: D3 / G3 / G5
     P_G_exp = m.addVars(times, vtype=GRB.CONTINUOUS, lb=0, ub=grid_export_bound, name="P_G_exp")
+    # Model Procedure: D1 / G6
     x_G = m.addVars(times, vtype=GRB.BINARY, name="x_G")
 
     # ============================================================
-    # 3. Fleet Conversion Constraints
+    # Fleet Conversion Constraints
     # ============================================================
 
 
@@ -364,18 +388,11 @@ def optimiser(
         m.addConstr(k[i] == z[i] - truck_base_electric[i],name=f"F3_NewConversion[{i}]")
     
     # ============================================================
-    # 5. Swappable Battery Inventory and Route Assignment (matrix)
+    # Swappable Battery Inventory and Route Assignment (matrix)
     # ============================================================
 
     # SB1. Number of Swappable Batteries Purchased
     m.addConstr(N_SB == gp.quicksum(w[b] for b in batteries), name="SB1_NumberSwappableBatteries")
-
-    # SB1A. Symmetry Breaking for Identical Candidate Batteries
-    # Candidate batteries all share the same capacity, cost, efficiency
-    # and operating constraints. Forcing lower-index batteries to be
-    # purchased first removes duplicate-labelled solutions without
-    # excluding any distinct physical design - the optimum is unchanged.
-    m.addConstr(w[:-1] >= w[1:], name="SB1A_BatterySymmetry")
 
     # SB2. One Battery per Electric Route
     z_r = gp.MVar.fromlist([z[route_truck[r]] for r in routes])
@@ -387,12 +404,18 @@ def optimiser(
     # SB4 removed - implied by C2 below (C2 with x_SB_ch fixed at 0
     # reduces to SB4, so it was a redundant row).
 
+    # SB5. Symmetry Breaking for Identical Candidate Batteries
+    # Candidate batteries all share the same capacity, cost, efficiency
+    # and operating constraints. Forcing lower-index batteries to be
+    # purchased first removes duplicate-labelled solutions without
+    # excluding any distinct physical design - the optimum is unchanged.
+    m.addConstr(w[:-1] >= w[1:], name="SB1A_BatterySymmetry")
+
     # ============================================================
-    # 6. Swappable Battery Charging and Charger Assignment (matrix)
+    # Swappable Battery Charging and Charger Assignment (matrix)
     # ============================================================
 
-    # C1 removed - implied by C2 below (C2 with the active-route sum
-    # fixed at 0 reduces to C1, so it was a redundant row).
+    # C1. Enforced through N_CS variable bounds, within the definition. 
 
     # C2. Battery cannot charge while on a route (also implies SB4 and C1)
     m.addConstr(x_SB_ch + Active @ a <= w, name="C2_NoChargeWhileRoute")
@@ -408,7 +431,7 @@ def optimiser(
     m.addConstr(P_SB_ch.sum(axis=1) <= charger_power_kw * N_CS_vec, name="C5_TotalChargerPower")
 
     # ============================================================
-    # 7. Swappable Battery State of Energy (matrix)
+    # Swappable Battery State of Energy (matrix)
     # ============================================================
 
     # SOC1. Stored-Energy Bounds
@@ -438,7 +461,7 @@ def optimiser(
     m.addConstr(E_SB[last_row, :] >= E_SB[first_row, :], name="SOC5_TerminalSBEnergy")
 
     # ============================================================
-    # 8. Stationary BESS Constraints
+    # Stationary BESS Constraints
     # ============================================================
 
     # B1. Installed BESS Energy Capacity
@@ -476,19 +499,7 @@ def optimiser(
     m.addConstr(E_BESS[last_t] >= E_BESS[first_t], name="B8_BESSTerminalEnergy")
 
     # ============================================================
-    # PV Constraints
-    # ============================================================
-
-    # PV1. Installed PV Capacity
-    m.addConstr(E_PV_cap <= pv_max_kw, name="PV1_MaxPVCapacity")
-    m.addConstr(E_PV_cap >= pv_min, name="PV_Installed")    #Change
-
-    # PV2. PV Generation
-    for t in times:
-        m.addConstr(P_PV_generated[t] == E_PV_cap * pv_profiles_t[t], name=f"PV2_PVGeneration[{t}]")
-
-    # ============================================================
-    # 9. Grid Connection and Import / Export Constraints
+    # Grid Connection and Import / Export Constraints
     # ============================================================
 
     # G1. Grid Connection Capacity
@@ -512,7 +523,19 @@ def optimiser(
         m.addConstr(P_G_exp[t] <= grid_export_bound * (1 - x_G[t]), name=f"G5_GridExportMode[{t}]")
 
     # ============================================================
-    # 10. Depot Electrical Power Balance (matrix)
+    # Solar PV Energy Capacity Limits
+    # ============================================================
+
+    # PV1. Installed PV Capacity
+    m.addConstr(E_PV_cap <= pv_max_kw, name="PV1_MaxPVCapacity")
+    m.addConstr(E_PV_cap >= pv_min, name="PV_Installed")    #Change
+
+    # PV2. PV Generation
+    for t in times:
+        m.addConstr(P_PV_generated[t] == E_PV_cap * pv_profiles_t[t], name=f"PV2_PVGeneration[{t}]")
+    
+    # ============================================================
+    # Depot Electrical Power Balance (matrix)
     # ============================================================
 
     # E1. Power Conservation at the Depot Bus
@@ -531,7 +554,7 @@ def optimiser(
 
 
     # =====================================================
-    # 11. Network Charges
+    # Network Charges
     # =====================================================
     
     is_peak = df_data['peak'].to_numpy()

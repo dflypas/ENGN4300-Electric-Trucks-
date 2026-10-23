@@ -58,7 +58,4 @@ Wholesale Market,0,Grid_Inputs,parameter,,,,Is the location on the wholesale mar
 F_I_T_on_peak,0.02,Grid_Inputs,parameter,FIT_on_peak,float,$/kWh,Feed in tariff value during the day between 10am to 3pm
 F_I_T_off_peak,0.18,Grid_Inputs,parameter,FIT_off_peak,float,$/kWh,Feed in tariff value during the night between 4pm to 9pm
 F_I_T_flat,0.05,Grid_Inputs,parameter,FIT_flat,float,$/kWh,Feed in tariff value during the night between 9pm to 10am
-,,,,,,,
-,,,,,,,
-,,,,,,,
-Grid upgrade,6000,,,,,$/kW,
+GRID_upgrade_price,6000,,,,,$/kW,

@@ -114,7 +114,7 @@ def format_npv_report(H, r, npv_items, npv_total, bau_npv_items, bau_npv_total, 
 # ============================================================
 # Process Data
 # ============================================================
-def run_pipeline(overrides=None, time_limit=None, mip_gap=None):
+def run_pipeline(overrides=None, time_limit=None, mip_gap=None, route_csv=None):
     """Execute the DairyDrive Electric modelling and reporting pipeline.
 
     Parameters
@@ -314,7 +314,9 @@ def run_pipeline(overrides=None, time_limit=None, mip_gap=None):
         # Route Data Processing 
         # Expand the route schedule and obtain route-to-truck assignments,
         # departures, energy demand, and timestep-level route activity.
-        route_data_processor = rt.RouteDataProcessor(route_csv=os.path.join(INPUT_DIR, "route_schedule_2.csv"), duration_days=DURATION_DAYS, times=TIMES)
+        route_csv = route_csv or os.path.join(INPUT_DIR, "route_schedule_2.csv")
+        route_data_processor = rt.RouteDataProcessor(route_csv=route_csv, duration_days=DURATION_DAYS, times=TIMES)
+        print("ROUTE FILE:", route_csv, "| TRUCKS:", route_data_processor.trucks)
         ROUTES = route_data_processor.routes
         TRUCKS = route_data_processor.trucks
         ROUTE_TRUCK = route_data_processor.route_truck
@@ -327,6 +329,7 @@ def run_pipeline(overrides=None, time_limit=None, mip_gap=None):
         ACTIVE_ROUTES_AT = route_data_processor.active_routes_at
         ROUTES_DEPARTING_AT = route_data_processor.routes_departing_at
         OVERLAPPING_ROUTES = route_data_processor.overlapping_routes
+        N_TRUCKS = len(TRUCKS)
     
         TRUCKS_IN_YEAR = {y: TRUCKS for y in YEARS}
         FLEET_SIZE = {y: len(TRUCKS) for y in YEARS}
@@ -592,7 +595,7 @@ def run_pipeline(overrides=None, time_limit=None, mip_gap=None):
             annuity = (1 - (1 + r) ** -H) / r if r > 0 else H
             crf_H = 1 / annuity
 
-            annual_opex = row["Operation_Cost"] * opex_scale
+            annual_opex = row["Operation_Cost"]
             annual_om = row["OM_Cost"]               # already an annual figure
 
             n_retrofit = sum(final["truck_base_electric"].values())
@@ -654,6 +657,7 @@ def run_pipeline(overrides=None, time_limit=None, mip_gap=None):
             with open(summary_file, "a", encoding="utf-8") as f:
                 f.write("\n" + npv_text)
 
+            full_summary_text = summary_text + "\n" + npv_text   
     # ============================================================
     # Local Sensitivity Analysis
     # ============================================================
@@ -867,7 +871,61 @@ def run_pipeline(overrides=None, time_limit=None, mip_gap=None):
     
         print("\nResults:")
         print(lsa_df)
+
+    # Return results to the Streamlit UI
+    if not results_year:
+        return None, None
+
+    final_year = max(results_year)
+    final_results = results_year[final_year]
+
+    # Load the lifetime NPV breakdown
+    npv_df = pd.read_csv(
+        os.path.join(OUTPUT_DIR, "npv_results.csv")
+    )
+
+    npv_items = {
+        "Upfront CAPEX": npv_df.iloc[0]["Upfront CAPEX"],
+        "Operating costs (PV)": npv_df.iloc[0]["Operating costs (PV)"],
+        "Fixed O&M (PV)": npv_df.iloc[0]["Fixed O&M (PV)"],
+        "Replacements (PV)": npv_df.iloc[0]["Replacements (PV)"],
+        "Residual value (PV)": npv_df.iloc[0]["Residual value (PV)"],
+    }
+
+    bau_npv_items = {
+        "Upfront CAPEX": bau_npv_items["Upfront CAPEX"],
+        "Operating costs (PV)": bau_npv_items["Operating costs (PV)"],
+        "Fixed O&M (PV)": bau_npv_items["Fixed O&M (PV)"],
+        "Replacements (PV)": bau_npv_items["Replacements (PV)"],
+        "Residual value (PV)": bau_npv_items["Residual value (PV)"],
+    }
+
+    results = {
+        "status": final_results.get("status", "Completed"),
+        "horizon_years": N_YEARS,
+        "npv_total": npv_total,
+        "bau_npv_total": bau_npv_total,
+        "npv_items": npv_items,
+        "bau_npv_items": bau_npv_items,
+        "trucks_electrified": sum(
+            final_results["truck_base_electric"].values()
+        ),
+        "fleet_size": FLEET_SIZE[0],
+        "number_of_batteries": final_results["batteries_total"],
+        "number_of_chargers": final_results["chargers_total"],
+        "PV_capacity_kW": final_results["PV_capacity_kW"],
+        "BESS_capacity_kWh": final_results["BESS_capacity_kWh"],
+        "grid_capacity_kW": final_results["grid_capacity_kW"],
+        "solve_time_seconds": time.time() - start_time,
+        "summary_text": full_summary_text,                        # <-- add this
+    }
     
+
+    df_results = pd.DataFrame([results])
+
+    return results, df_results
+
+
 # Run the pipeline only when this module is executed as a script;
 # importing main.py does not automatically start an optimisation.
 if __name__ == "__main__":

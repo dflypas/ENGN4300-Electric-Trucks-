@@ -314,7 +314,7 @@ def run_pipeline(overrides=None, time_limit=None, mip_gap=None, route_csv=None):
         # Route Data Processing 
         # Expand the route schedule and obtain route-to-truck assignments,
         # departures, energy demand, and timestep-level route activity.
-        route_csv = route_csv or os.path.join(INPUT_DIR, "route_schedule_2.csv")
+        route_csv = route_csv or os.path.join(INPUT_DIR, "route_schedule.csv")
         route_data_processor = rt.RouteDataProcessor(route_csv=route_csv, duration_days=DURATION_DAYS, times=TIMES)
         print("ROUTE FILE:", route_csv, "| TRUCKS:", route_data_processor.trucks)
         ROUTES = route_data_processor.routes

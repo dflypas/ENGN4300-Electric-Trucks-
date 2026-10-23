@@ -24,6 +24,13 @@ st.markdown("""
 <style>
 @import url('https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;600;700&family=Nunito+Sans:wght@400;600&display=swap');
 
+
+/* Hide the anchor link icons next to headings */
+[data-testid="stHeaderActionElements"],
+h1 a, h2 a, h3 a, h4 a, h5 a, h6 a {
+    display: none !important;
+}
+
 html, body, [class*="css"]  {
     font-family: 'Nunito Sans', sans-serif;
 }

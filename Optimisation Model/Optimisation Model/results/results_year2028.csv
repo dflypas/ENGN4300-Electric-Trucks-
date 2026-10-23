@@ -1,0 +1,2 @@
+total_cost,chargers_total,batteries_total,number_of_retrofits,diesel_purchased,truck_base_electric,BESS_capacity_kWh,BESS_charge_capacity_kW,BESS_discharge_capacity_kW,PV_capacity_kW,grid_capacity_kW
+741473.1632512489,2,6,8,0,"{1: 1, 2: 1, 3: 1, 4: 1, 5: 1, 6: 1, 7: 1, 8: 1}",2111.872299562815,2000.0,2000.0,1000.0,3000.0

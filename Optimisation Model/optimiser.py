@@ -849,7 +849,6 @@ def optimiser(
         df_results_year["Total_SB_Charging_kW"] = [sum(P_SB_ch[time_idx[t], battery_idx[b]].X for b in batteries) for t in times]
         
         # Annual energy totals
-        df_results_year["Operation_Cost"] = an_op_annual.getValue()
         df_results_year["Annual_Grid_Import_kWh"] = sum(P_G_imp[t].X * dt for t in times)
         df_results_year["Annual_Grid_Export_kWh"] = sum(P_G_exp[t].X * dt for t in times)
         df_results_year["Annual_PV_Generation_kWh"] = sum(P_PV_generated[t].X * dt for t in times)
@@ -858,17 +857,16 @@ def optimiser(
         df_results_year["Annual_SB_Charge_kWh"] = float(P_SB_ch.X.sum() * dt)
 
         spend_items = {
+                    "Upfront CAPEX":   sin_capex.getValue(),
                     "Operating costs": an_op_annual.getValue(),
-                    "Upfront CAPEX":     sin_capex.getValue(),
-                    "Operating costs":   an_op.getValue(),    # grid import - export revenue + diesel + network charges
-                    "Fixed O&M":         an_om.getValue(),
+                    "Fixed O&M":       an_om.getValue(),
                 }
         total_spend = sum(spend_items.values())
 
         
         # Costs
         df_results_year["Total_Cost"] = obj1.getValue()
-        df_results_year["Operation_Cost"] = an_op.getValue()
+        df_results_year["Operation_Cost"] = an_op_annual.getValue()
         df_results_year["Annualised_CAPEX"] = an_capex.getValue()
         df_results_year["Replacement_Cost"] = an_rep.getValue()
         df_results_year["Residual_Value"] = an_res.getValue()

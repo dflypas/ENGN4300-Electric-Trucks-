@@ -510,6 +510,7 @@ def run_pipeline(overrides=None, time_limit=None, mip_gap=None, route_csv=None):
                 or not isinstance(results_year[YEAR], dict)
             ):
                 print(f"No feasible solution for Year {YEAR}.")
+                results_year.pop(YEAR, None)
                 break
 
             # Print readable optimisation summary

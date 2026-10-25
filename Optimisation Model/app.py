@@ -451,6 +451,12 @@ overrides = {
 if not schedule_errors:
     overrides["n_trucks"] = n_trucks_from_schedule
 
+    # Scale candidate assets with the number of trucks in the schedule
+    BATTERIES_PER_TRUCK = 2   # upper bound on swappable batteries per truck
+    CHARGERS_PER_TRUCK = 1    # upper bound on chargers per truck
+    overrides["max_candidate_batteries"] = max(1, math.ceil(n_trucks_from_schedule * BATTERIES_PER_TRUCK))
+    overrides["max_candidate_chargers"] = max(1, math.ceil(n_trucks_from_schedule * CHARGERS_PER_TRUCK))
+
 run_button = st.button("Run Optimisation", disabled=bool(schedule_errors))
 
 # ── Run pipeline ────────────────────────────────────────────

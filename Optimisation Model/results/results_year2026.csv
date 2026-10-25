@@ -1,2 +1,2 @@
 total_cost,chargers_total,batteries_total,number_of_retrofits,diesel_purchased,truck_base_electric,BESS_capacity_kWh,BESS_charge_capacity_kW,BESS_discharge_capacity_kW,PV_capacity_kW,grid_capacity_kW,grid_upgrade_$,upfront_capex,total_spend,spend_Upfront_CAPEX,spend_Operating_costs,spend_Fixed_O&M
-2041730.343827442,1,3,5,6849,"{1: 0, 2: 1, 3: 0, 4: 0, 5: 1, 6: 1, 7: 1, 8: 1}",307.55623838494375,2000.0,2000.0,0.0,1000.0,0.0,3371133.4357577413,4132342.0770699754,3371133.4357577413,538497.3069546565,222711.3343575774
+1791503.9391710681,3,6,10,0,"{1: 1, 2: 1, 3: 1, 4: 1, 5: 1, 6: 1, 7: 1, 8: 1, 9: 1, 10: 1}",20.840036553836757,2000.0,2000.0,874.3405793063321,1000.0,0.0,4352862.237205608,4410870.987561677,4352862.237205608,14480.127984013012,43528.62237205608

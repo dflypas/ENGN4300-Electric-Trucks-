@@ -4,7 +4,7 @@ year,2026,Location_Inputs,parameter,year,int,year,Assessment year used by the PV
 latitude,-36.674,Location_Inputs,parameter,latitude,float,degrees,Site latitude
 longitude,149.842,Location_Inputs,parameter,longitude,float,degrees,Site longitude
 dt,1,Study_Inputs,parameter,Δt,float,h,Duration of one operational timestep
-max_candidate_batteries,8,Battery_Inputs,parameter,B_max,int,batteries,Safe upper bound on the number of candidate swappable batteries
+max_candidate_batteries,15,Battery_Inputs,parameter,B_max,int,batteries,Safe upper bound on the number of candidate swappable batteries
 max_candidate_chargers,8,Charger_Inputs,parameter,C_max,int,chargers,Maximum number of candidate charger positions/options represented in the model
 n_trucks,8,Truck_Inputs,parameter,N_fleet(y),int,trucks,Fleet size; current implementation assumes the same fleet size across model years
 SB_cap_max,650,Battery_Inputs,parameter,Q_SB,float,kWh,Rated energy capacity of one swappable battery

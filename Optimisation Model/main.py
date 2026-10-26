@@ -81,29 +81,29 @@ def format_npv_report(H, r, npv_items, npv_total, bau_npv_items, bau_npv_total, 
     
     lines = []
     lines.append("=" * 62)
-    lines.append(f"NPV OF LIFETIME COST ({H} years, {r:.1%} discount rate)")
+    lines.append(f"NPC OF LIFETIME COST ({H} years, {r:.1%} discount rate)")
     lines.append("=" * 62)
     for label, value in npv_items.items():
         lines.append(f"{label:<28}{'$' + format(value, ',.0f'):>19}{100 * value / npv_total:>11.1f}%")
     lines.append("-" * 62)
-    lines.append(f"{'NPV (total cost)':<28}{'$' + format(npv_total, ',.0f'):>19}")
+    lines.append(f"{'NPC (total cost)':<28}{'$' + format(npv_total, ',.0f'):>19}")
 
     lines.append("")
     lines.append("=" * 62)
-    lines.append(f"BUSINESS AS USUAL (all diesel) - NPV ({H} years)")
+    lines.append(f"BUSINESS AS USUAL (all diesel) - NPC ({H} years)")
     lines.append("=" * 62)
     for label, value in bau_npv_items.items():
         lines.append(f"{label:<28}{'$' + format(value, ',.0f'):>19}")
     lines.append("-" * 62)
-    lines.append(f"{'BAU NPV (total cost)':<28}{'$' + format(bau_npv_total, ',.0f'):>19}")
+    lines.append(f"{'BAU NPC (total cost)':<28}{'$' + format(bau_npv_total, ',.0f'):>19}")
 
     lines.append("")
     lines.append("=" * 62)
     lines.append("COMPARISON")
     lines.append("=" * 62)
-    lines.append(f"{'Optimiser NPV':<28}{'$' + format(npv_total, ',.0f'):>19}")
-    lines.append(f"{'BAU NPV':<28}{'$' + format(bau_npv_total, ',.0f'):>19}")
-    lines.append(f"{'NPV saving':<28}{'$' + format(bau_npv_total - npv_total, ',.0f'):>19}"
+    lines.append(f"{'Optimiser NPC':<28}{'$' + format(npv_total, ',.0f'):>19}")
+    lines.append(f"{'BAU NPC':<28}{'$' + format(bau_npv_total, ',.0f'):>19}")
+    lines.append(f"{'NPC saving':<28}{'$' + format(bau_npv_total - npv_total, ',.0f'):>19}"
                  "  (positive = electrification cheaper)")
     lines.append("")
     lines.append(f"{'BAU upfront CAPEX':<28}{'$' + format(bau_row['upfront_capex'], ',.0f'):>19}")
@@ -422,7 +422,7 @@ def run_pipeline(overrides=None, time_limit=None, mip_gap=None, route_csv=None):
             "diesel_capex": DIESEL_CAPEX,
         
             "discount_rate": DISCOUNT_RATE,
-            "project_lifetime": N_YEARS,
+            "project_lifetime": 10,  #TO DO Change to 10 years.
         
             "sb_lifetime": SB_L,
             "charger_lifetime": C_L,
@@ -476,7 +476,7 @@ def run_pipeline(overrides=None, time_limit=None, mip_gap=None, route_csv=None):
             diesel_om=DIESEL_OM,
     
             discount_rate=DISCOUNT_RATE,
-            project_lifetime=N_YEARS)
+            project_lifetime=10)
         
         bau_df_results.to_csv(os.path.join(OUTPUT_DIR,"bau_results.csv"), index=False)
 

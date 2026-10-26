@@ -353,7 +353,7 @@ def optimiser(
     x_BESS = m.addVars(times, vtype=GRB.BINARY, name="x_BESS")
 
     # Model Procedure: D3 / PV1
-    E_PV_cap = m.addVar(vtype=GRB.CONTINUOUS, lb=0, ub=pv_max_kw, name="E_PV_cap")
+    P_PV_cap = m.addVar(vtype=GRB.CONTINUOUS, lb=0, ub=pv_max_kw, name="P_PV_cap")
     # Model Procedure: D3 / PV2
     P_PV_generated = m.addVars(times, vtype=GRB.CONTINUOUS, lb=0, name="P_PV_generated")
 
@@ -527,12 +527,12 @@ def optimiser(
     # ============================================================
 
     # PV1. Installed PV Capacity
-    m.addConstr(E_PV_cap <= pv_max_kw, name="PV1_MaxPVCapacity")
-    m.addConstr(E_PV_cap >= pv_min, name="PV_Installed")    #Change
+    m.addConstr(P_PV_cap <= pv_max_kw, name="PV1_MaxPVCapacity")
+    m.addConstr(P_PV_cap >= pv_min, name="PV_Installed")    #Change
 
     # PV2. PV Generation
     for t in times:
-        m.addConstr(P_PV_generated[t] == E_PV_cap * pv_profiles_t[t], name=f"PV2_PVGeneration[{t}]")
+        m.addConstr(P_PV_generated[t] == P_PV_cap * pv_profiles_t[t], name=f"PV2_PVGeneration[{t}]")
     
     # ============================================================
     # Depot Electrical Power Balance (matrix)
@@ -642,6 +642,7 @@ def optimiser(
     # Capital recovery factor
     crf = (discount_rate * (1 + discount_rate) ** project_lifetime / ((1 + discount_rate) ** project_lifetime - 1))
 
+
     # Swappable batteries
     an_capex_SB = (crf * battery_cost * N_SB)
 
@@ -652,7 +653,7 @@ def optimiser(
     an_capex_BESS = (crf * bess_capex_per_kwh * Q_BESS)
 
     # PV
-    an_capex_PV = (crf * pv_capex_per_kw * E_PV_cap)
+    an_capex_PV = (crf * pv_capex_per_kw * P_PV_cap)
 
     # Diesel
     an_capex_diesel = crf * diesel_capex * N_D
@@ -670,7 +671,7 @@ def optimiser(
     "Swappable batteries": battery_cost * N_SB,
     "Chargers":            charger_cost * N_CS,
     "Stationary BESS":     bess_capex_per_kwh * Q_BESS,
-    "PV":                  pv_capex_per_kw * E_PV_cap,
+    "PV":                  pv_capex_per_kw * P_PV_cap,
     "Truck retrofits":     retrofit_cost * (gp.quicksum(k[i] for i in trucks)
                                             + sum(truck_base_electric.values())),
     "Grid Upgrades":       (S_G-existing_grid_capacity) * grid_upgrade_price,
@@ -709,8 +710,8 @@ def optimiser(
 
     # PV
     rep_PV_unit, res_PV_unit = replacement_annualisation(pv_capex_per_kw, project_lifetime, discount_rate, pv_lifetime)
-    an_rep_PV = rep_PV_unit * E_PV_cap
-    an_res_PV = res_PV_unit * E_PV_cap
+    an_rep_PV = rep_PV_unit * P_PV_cap
+    an_res_PV = res_PV_unit * P_PV_cap
 
     # Truck retrofits
     rep_retrofit_unit, res_retrofit_unit = replacement_annualisation(retrofit_cost, project_lifetime, discount_rate, retrofit_lifetime)
@@ -742,7 +743,7 @@ def optimiser(
     an_om_BESS = (bess_capex_per_kwh * Q_BESS * bess_om)
 
     # PV
-    an_om_PV = (pv_capex_per_kw * E_PV_cap * pv_om)
+    an_om_PV = (pv_capex_per_kw * P_PV_cap * pv_om)
 
     # Electric truck retrofit O&M
     an_om_retrofit = (retrofit_cost * retrofit_om * N_EV)
@@ -807,7 +808,7 @@ def optimiser(
         df_results_year = pd.DataFrame(time_series_data)
         
         # Technology selection
-        df_results_year["PV_Capacity_kW"] = E_PV_cap.X
+        df_results_year["PV_Capacity_kW"] = P_PV_cap.X
         df_results_year["BESS_Capacity_kWh"] = Q_BESS.X
         df_results_year["BESS_Charge_Capacity_kW"] = P_BESS_ch_inst.X
         df_results_year["BESS_Discharge_Capacity_kW"] = P_BESS_dis_inst.X
@@ -894,7 +895,7 @@ def optimiser(
             "BESS_capacity_kWh": Q_BESS.X,
             "BESS_charge_capacity_kW": P_BESS_ch_inst.X,
             "BESS_discharge_capacity_kW": P_BESS_dis_inst.X,
-            "PV_capacity_kW": E_PV_cap.X,
+            "PV_capacity_kW": P_PV_cap.X,
             "grid_capacity_kW": S_G.X,
             "grid_upgrade_$": (S_G.X-existing_grid_capacity) * grid_upgrade_price,
             "upfront_capex": sin_capex.getValue(),
@@ -1064,10 +1065,6 @@ def print_optimisation_results(results, year=None, fleet_size=None):
           f"{ts['Grid_Import_kW'].max():,.1f} kW")
     print(f"Peak grid export:        "
           f"{ts['Grid_Export_kW'].max():,.1f} kW")
-
-    print("\n" + "=" * 62)
-    print("End of optimisation summary")
-    print("=" * 62)
 
 # ============================================================
 # Replacement Cost and Residual Value Annualisation
